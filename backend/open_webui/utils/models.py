@@ -82,7 +82,10 @@ async def get_all_models(request, refresh: bool = False, user: UserModel = None)
         request.app.state.BASE_MODELS = []
 
     redis = getattr(request.app.state, 'redis', None)
-    use_cache = config.get('models.base_models_cache') and not refresh
+    has_user_newapi_key = bool(
+        user and isinstance(getattr(user, 'info', None), dict) and user.info.get('newapi_key')
+    )
+    use_cache = config.get('models.base_models_cache') and not refresh and not has_user_newapi_key
     base_models = None
 
     if use_cache and redis is not None:
@@ -98,12 +101,15 @@ async def get_all_models(request, refresh: bool = False, user: UserModel = None)
 
     if base_models is None:
         base_models = await get_all_base_models(request, user=user)
-        if base_models:
-            request.app.state.BASE_MODELS = base_models
-            if config.get('models.base_models_cache') and redis is not None:
-                await redis.set(BASE_MODELS_CACHE_KEY, JSONCodec.dumps(base_models))
-        else:
-            base_models = request.app.state.BASE_MODELS
+        if not has_user_newapi_key:
+            if base_models:
+                request.app.state.BASE_MODELS = base_models
+                if config.get('models.base_models_cache') and redis is not None:
+                    await redis.set(BASE_MODELS_CACHE_KEY, JSONCodec.dumps(base_models))
+            else:
+                base_models = request.app.state.BASE_MODELS
+        elif base_models is None:
+            base_models = []
 
     # deep copy the base models to avoid modifying the original list
     models = [model.copy() for model in base_models]
@@ -452,12 +458,14 @@ async def get_all_models(request, refresh: bool = False, user: UserModel = None)
         models_dict[model['id']] = model
     if isinstance(request.app.state.MODELS, RedisDict):
         try:
-            request.app.state.MODELS.set(models_dict)
+            merged_models_dict = {**dict(request.app.state.MODELS.items()), **models_dict}
+            request.app.state.MODELS.set(merged_models_dict)
         except Exception as e:
             log.warning(f'Failed to update Redis model cache, using in-process cache: {e}')
             request.app.state.MODELS = models_dict
     else:
-        request.app.state.MODELS = models_dict
+        existing_models = getattr(request.app.state, 'MODELS', None) or {}
+        request.app.state.MODELS = {**existing_models, **models_dict}
 
     return models
 

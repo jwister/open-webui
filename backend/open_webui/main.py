@@ -1112,10 +1112,9 @@ async def chat_completion(
     form_data: dict,
     user=Depends(get_verified_user),
 ):
-    if not request.app.state.MODELS:
-        await get_all_models(request, user=user)
-
     model_id = form_data.get('model', None)
+    if not request.app.state.MODELS or (model_id and model_id not in request.app.state.MODELS):
+        await get_all_models(request, user=user)
     model_item = form_data.pop('model_item', {})
     tasks = form_data.pop('background_tasks', None)
 
@@ -2248,8 +2247,6 @@ async def get_app_config(request: Request):
             user = await Users.get_user_by_id(data['id'])
 
     onboarding = False
-    if user is None:
-        onboarding = not await Users.has_users()
 
     license_metadata = getattr(app.state, 'LICENSE_METADATA', None)
     user_count = await Users.get_num_users() if license_metadata else None

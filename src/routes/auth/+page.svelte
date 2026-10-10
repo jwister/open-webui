@@ -331,16 +331,20 @@
 										{:else}
 											<div class="mb-2">
 												<label for="email" class="text-sm font-normal text-left mb-1 block"
-													>{$i18n.t('Email')}</label
+													>{mode === 'signin'
+														? `${$i18n.t('Username')} / ${$i18n.t('Email')}`
+														: $i18n.t('Email')}</label
 												>
 												<input
 													bind:value={email}
-													type="email"
+													type={mode === 'signin' ? 'text' : 'email'}
 													id="email"
 													class="my-0.5 w-full text-sm outline-hidden bg-transparent placeholder:text-gray-300 dark:placeholder:text-gray-600"
-													autocomplete="email"
+													autocomplete="username"
 													name="email"
-													placeholder={$i18n.t('Enter Your Email')}
+													placeholder={mode === 'signin'
+														? `${$i18n.t('Enter Your Username')} / ${$i18n.t('Email')}`
+														: $i18n.t('Enter Your Email')}
 													required
 												/>
 											</div>

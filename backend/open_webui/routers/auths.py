@@ -77,6 +77,7 @@ from open_webui.utils.auth import (
 from open_webui.utils.groups import apply_default_group_assignment
 from open_webui.utils.json_codec import JSONCodec
 from open_webui.utils.misc import parse_duration, validate_email_format
+from open_webui.utils.newapi import authenticate_with_newapi
 from open_webui.utils.rate_limit import RateLimiter
 from pydantic import BaseModel, StrictStr, field_validator
 from sqlalchemy.exc import IntegrityError
@@ -821,11 +822,82 @@ async def signin(
                 detail=ERROR_MESSAGES.RATE_LIMIT_EXCEEDED,
             )
 
-        user = await Auths.authenticate_user(
-            form_data.email.lower(),
-            lambda pw: verify_password(form_data.password, pw),
-            db=db,
+        newapi_user, newapi_err = await authenticate_with_newapi(form_data.email, form_data.password)
+        if newapi_err or not newapi_user:
+            raise HTTPException(400, detail=newapi_err or ERROR_MESSAGES.INVALID_CRED)
+
+        newapi_id = newapi_user.get('id')
+        newapi_email = newapi_user['email'].lower()
+        newapi_username = newapi_user['username']
+        newapi_display_name = newapi_user['display_name']
+        newapi_role = newapi_user['role']
+        newapi_api_key = newapi_user['api_key']
+
+        user = None
+        if newapi_id is not None:
+            user = await Users.get_user_by_oauth_sub('newapi', str(newapi_id), db=db)
+        if not user:
+            user = await Users.get_user_by_email(newapi_email, db=db)
+        if not user and '@' in form_data.email:
+            user = await Users.get_user_by_email(form_data.email.strip().lower(), db=db)
+
+        hashed_password = await get_password_hash(form_data.password)
+
+        if not user:
+            user = await Auths.insert_new_auth(
+                email=newapi_email,
+                password=hashed_password,
+                name=newapi_display_name,
+                role=newapi_role,
+                oauth={'newapi': {'sub': str(newapi_id)}} if newapi_id is not None else None,
+                db=db,
+            )
+            if not user:
+                raise HTTPException(500, detail=ERROR_MESSAGES.CREATE_USER_ERROR)
+
+            await apply_default_group_assignment(
+                await Config.get('ui.default_group_id'),
+                user.id,
+                db=db,
+            )
+            await publish_event(
+                request,
+                EVENTS.USER_CREATED,
+                actor=user,
+                subject_id=user.id,
+                source='newapi',
+                data={'role': user.role},
+            )
+        else:
+            await Auths.update_user_password_by_id(user.id, hashed_password, db=db)
+            if newapi_id is not None:
+                await Users.update_user_oauth_by_id(user.id, 'newapi', str(newapi_id), db=db)
+
+        updated_info = dict(user.info or {})
+        updated_info.update(
+            {
+                'newapi_key': newapi_api_key,
+                'newapi_user_id': newapi_id,
+                'newapi_username': newapi_username,
+            }
         )
+        user_updates: dict = {
+            'info': updated_info,
+            'username': newapi_username,
+        }
+        if user.role != newapi_role and newapi_role == 'admin':
+            user_updates['role'] = 'admin'
+        elif user.role == 'pending':
+            user_updates['role'] = newapi_role
+
+        user = await Users.update_user_by_id(user.id, user_updates, db=db) or user
+
+        try:
+            from open_webui.routers import openai as openai_router
+
+            await openai_router.get_all_models.cache.delete(f'openai_all_models_{user.id}')
+        except Exception as e:
+            log.debug('Failed to clear user model cache on signin: %s', e)
 
     if user:
         return await create_session_response(request, user, db, response, set_cookie=True, source=auth_source)

@@ -46,6 +46,7 @@ from open_webui.utils.headers import get_custom_headers, include_user_info_heade
 from open_webui.utils.json_codec import JSONCodec
 from open_webui.utils.misc import convert_logit_bias_input_to_json
 from open_webui.utils.model_ids import strip_provider_model_prefix
+from open_webui.utils.newapi import get_user_newapi_key
 from open_webui.utils.payload import (
     apply_model_params_to_body_openai,
     apply_system_prompt_to_body,
@@ -93,6 +94,7 @@ async def send_get_request(
     user: UserModel = None,
     config=None,
 ):
+    key = get_user_newapi_key(user, key)
     try:
         async with aiohttp.ClientSession(timeout=_MODEL_LIST_TIMEOUT, trust_env=True) as session:
             if request and config:
@@ -126,6 +128,7 @@ async def get_models_request(
     user: UserModel = None,
     config=None,
 ):
+    key = get_user_newapi_key(user, key)
     if is_anthropic_url(url):
         return await get_anthropic_models(url, key, user=user)
     return await send_get_request(request, f'{url}/models', key, user=user, config=config)
@@ -160,6 +163,7 @@ async def get_headers_and_cookies(
     metadata: dict | None = None,
     user: UserModel = None,
 ):
+    key = get_user_newapi_key(user, key)
     cookies = getattr(request, 'cookies', {}) if config.get('forward_cookies', False) else {}
     headers = {
         'Content-Type': 'application/json',
@@ -857,7 +861,8 @@ async def get_all_models(request: Request, user: UserModel) -> dict[str, list]:
     models = get_merged_models(map(extract_data, responses))
     log.debug('models: %s', models)
 
-    request.app.state.OPENAI_MODELS = models
+    existing_openai_models = getattr(request.app.state, 'OPENAI_MODELS', None) or {}
+    request.app.state.OPENAI_MODELS = {**existing_openai_models, **models}
     return {'data': list(models.values())}
 
 
