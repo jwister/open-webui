@@ -234,7 +234,7 @@ ENABLE_DIRECT_INTEGRATIONS = os.getenv('ENABLE_DIRECT_INTEGRATIONS', 'False').lo
 # OLLAMA_BASE_URL
 ####################################
 
-ENABLE_OLLAMA_API = os.getenv('ENABLE_OLLAMA_API', 'True').lower() == 'true'
+ENABLE_OLLAMA_API = os.getenv('ENABLE_OLLAMA_API', 'False').lower() == 'true'
 
 OLLAMA_API_BASE_URL = os.getenv('OLLAMA_API_BASE_URL', 'http://localhost:11434/api')
 

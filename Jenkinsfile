@@ -49,6 +49,8 @@ pipeline {
           sh '''
             docker build --pull \
               --build-arg BUILD_HASH="$GIT_SHA" \
+              --build-arg USE_SLIM=true \
+              --build-arg USE_OLLAMA=false \
               --tag "$IMAGE_REPOSITORY:$IMAGE_VERSION" \
               --tag "$IMAGE_REPOSITORY:latest" \
               .

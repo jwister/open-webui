@@ -2,7 +2,7 @@
 # use build args in the docker build command with --build-arg="BUILDARG=true"
 ARG USE_CUDA=false
 ARG USE_OLLAMA=false
-ARG USE_SLIM=false
+ARG USE_SLIM=true
 ARG USE_PERMISSION_HARDENING=false
 # Tested with cu117 for CUDA 11 and cu121 for CUDA 12 (default)
 ARG USE_CUDA_VER=cu128
@@ -82,7 +82,9 @@ ENV ENV=prod \
     USE_AUXILIARY_EMBEDDING_MODEL_DOCKER=${USE_AUXILIARY_EMBEDDING_MODEL}
 
 ## Basis URL Config ##
-ENV OLLAMA_BASE_URL="/ollama" \
+ENV ENABLE_OLLAMA_API=false \
+    ENABLE_OPENAI_API=true \
+    OLLAMA_BASE_URL="" \
     OPENAI_API_BASE_URL=""
 
 ## API Key and Security Config ##
