@@ -8,7 +8,7 @@ pipeline {
     IMAGE_REPOSITORY = 'wenyou7/open-webui'
     DOCKERHUB_CREDENTIALS = 'dockerhub-token'
     TARGET_BRANCH = 'dev'
-    DOCKER_BUILDKIT = '1'
+    DOCKER_BUILDKIT = '0'
   }
   stages {
     stage('Checkout') {
