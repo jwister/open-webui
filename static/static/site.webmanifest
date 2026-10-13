@@ -1,6 +1,6 @@
 {
-  "name": "Open WebUI",
-  "short_name": "WebUI",
+  "name": "chatbox-z",
+  "short_name": "chatbox-z",
   "icons": [
     {
       "src": "/static/web-app-manifest-192x192.png",
