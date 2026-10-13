@@ -24,7 +24,8 @@
 
 	export const open = () => selector?.open();
 
-	$: chatModels = $models.filter(isTextChatModel);
+	let chatModels: any[] = [];
+	$: chatModels = ($models ?? []).filter(isTextChatModel);
 
 	const saveDefaultModel = async () => {
 		const hasEmptyModel = selectedModels.filter((it) => it === '');
@@ -48,10 +49,10 @@
 		await updateUserSettings(localStorage.token, { ui: { pinnedModels: $settings.pinnedModels } });
 	};
 
-	$: if (selectedModels.length > 0 && chatModels.length > 0) {
-		const validIds = chatModels.map((m) => m.id);
+	$: if (Array.isArray(selectedModels) && selectedModels.length > 0 && ($models ?? []).length > 0) {
+		const validIds = ($models ?? []).map((m) => m?.id).filter(Boolean);
 		const _selectedModels = selectedModels.map((model) =>
-			validIds.includes(model) ? model : (chatModels[0]?.id ?? '')
+			validIds.includes(model) ? model : ''
 		);
 
 		if (!equal(_selectedModels, selectedModels)) {
@@ -72,7 +73,7 @@
 					bind:this={selector}
 					id="model"
 					placeholder={$i18n.t('Select a model')}
-					items={chatModels.map((model) => ({
+					items={(chatModels ?? []).map((model) => ({
 						value: model.id,
 						label: resolveLocalizedModelName(model, $i18n.language),
 						model: model

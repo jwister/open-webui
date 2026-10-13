@@ -233,11 +233,12 @@
 		collapsedGroups = { ...collapsedGroups };
 	};
 
-	$: chatItems = items.filter((item) => isTextChatModel(item.model ?? item));
+	let chatItems: any[] = [];
+	$: chatItems = (items ?? []).filter((item) => isTextChatModel(item?.model ?? item));
 
 	$: availableGroups = (() => {
 		const groupCounts: Record<string, { id: string; name: string; order: number; count: number }> = {};
-		for (const item of chatItems) {
+		for (const item of (chatItems ?? [])) {
 			const g = getModelGroup(item);
 			if (!groupCounts[g.id]) {
 				groupCounts[g.id] = { id: g.id, name: g.name, order: g.order, count: 0 };
@@ -247,16 +248,18 @@
 		return Object.values(groupCounts).sort((a, b) => a.order - b.order);
 	})();
 
+	const createFuseItem = (item: any) => {
+		if (!item) return { value: '', tags: '', modelName: '', desc: '' };
+		return {
+			...item,
+			modelName: resolveLocalizedModelName(item.model, $i18n.language),
+			tags: (item.model?.tags ?? []).map((tag: any) => tag?.name ?? '').join(' '),
+			desc: resolveLocalizedModelDescription(item.model, $i18n.language)
+		};
+	};
+
 	const fuse = new Fuse(
-		chatItems.map((item) => {
-			const _item = {
-				...item,
-				modelName: resolveLocalizedModelName(item.model, $i18n.language),
-				tags: (item.model?.tags ?? []).map((tag) => tag.name).join(' '),
-				desc: resolveLocalizedModelDescription(item.model, $i18n.language)
-			};
-			return _item;
-		}),
+		(items ?? []).map(createFuseItem),
 		{
 			keys: ['value', 'tags', 'modelName'],
 			threshold: 0.4
@@ -265,17 +268,7 @@
 
 	const updateFuse = () => {
 		if (fuse) {
-			fuse.setCollection(
-				chatItems.map((item) => {
-					const _item = {
-						...item,
-						modelName: resolveLocalizedModelName(item.model, $i18n.language),
-						tags: (item.model?.tags ?? []).map((tag) => tag.name).join(' '),
-						desc: resolveLocalizedModelDescription(item.model, $i18n.language)
-					};
-					return _item;
-				})
-			);
+			fuse.setCollection((chatItems ?? []).map(createFuseItem));
 		}
 	};
 
@@ -309,7 +302,7 @@
 						}
 						return true;
 					})
-			: chatItems
+			: (chatItems ?? [])
 					.filter((item) => {
 						if (selectedTag === '') {
 							return true;
@@ -340,7 +333,7 @@
 			{ id: string; name: string; order: number; items: { item: any; flatIndex: number }[] }
 		>();
 
-		for (const item of rawFilteredItems) {
+		for (const item of (rawFilteredItems ?? [])) {
 			const g = getModelGroup(item);
 			if (!groupMap.has(g.id)) {
 				groupMap.set(g.id, { id: g.id, name: g.name, order: g.order, items: [] });
@@ -354,7 +347,9 @@
 
 		for (const group of groups) {
 			group.items.sort((a, b) =>
-				String(a.item.label || a.item.value).localeCompare(String(b.item.label || b.item.value))
+				String(a.item?.label || a.item?.value || '').localeCompare(
+					String(b.item?.label || b.item?.value || '')
+				)
 			);
 			const isCollapsed = !searchValue && !selectedGroup && Boolean(collapsedGroups[group.id]);
 			for (const entry of group.items) {
@@ -1064,7 +1059,7 @@
 						</div>
 					{/if}
 
-					{#if availableGroups.length > 1}
+					{#if (availableGroups ?? []).length > 1}
 						<div
 							class="mx-1 mb-1 flex items-center gap-1 overflow-x-auto px-1 py-0.5 scrollbar-none border-b border-gray-100/60 dark:border-gray-800/50"
 						>
@@ -1077,7 +1072,7 @@
 									selectedGroup = '';
 								}}
 							>
-								{$i18n.t('All')} ({chatItems.length})
+								{$i18n.t('All')} ({(chatItems ?? []).length})
 							</button>
 							{#each availableGroups as g (g.id)}
 								<button
@@ -1096,7 +1091,7 @@
 					{/if}
 
 					<div class="group relative flex min-h-0 flex-1 flex-col">
-						{#if filteredItems.length === 0}
+						{#if (filteredItems ?? []).length === 0}
 							{#if items.length === 0 && $user?.role === 'admin'}
 								<div
 									class="my-2 flex w-full flex-col items-start justify-center px-4 py-3 text-start"
@@ -1141,10 +1136,10 @@
 									listScrollTop = listContainer.scrollTop;
 								}}
 							>
-								{#each modelGroups as group (group.id)}
-									{#if group.items.length > 0}
+								{#each (modelGroups ?? []) as group (group.id)}
+									{#if (group.items ?? []).length > 0}
 										{@const isCollapsed = !searchValue && !selectedGroup && Boolean(collapsedGroups[group.id])}
-										{#if modelGroups.length > 1}
+										{#if (modelGroups ?? []).length > 1}
 											<div
 												class="sticky top-0 z-10 my-0.5 flex items-center justify-between rounded-lg bg-white/95 px-2 py-1 text-gray-500 select-none backdrop-blur-xs dark:bg-gray-850/95 dark:text-gray-400 border-b border-gray-100/60 dark:border-gray-800/40"
 											>
@@ -1168,7 +1163,7 @@
 										{/if}
 
 										{#if !isCollapsed}
-											{#each group.items as entry (entry.item.value)}
+											{#each (group.items ?? []) as entry (entry.item?.value ?? entry.flatIndex)}
 												<ModelItem
 													{selectedModelIdx}
 													item={entry.item}

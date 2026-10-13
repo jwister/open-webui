@@ -79,10 +79,10 @@ export function isTextChatModel(model: any): boolean {
 
 	if (Array.isArray(rawEndpoints) && rawEndpoints.length > 0) {
 		const endpoints = rawEndpoints.map((ep: any) => String(ep).trim().toLowerCase());
-		if (endpoints.includes('openai-video') || endpoints.some((ep: string) => ep.includes('video'))) {
-			return false;
-		}
-		if (!endpoints.some((ep: string) => CHAT_ENDPOINT_TYPES.has(ep))) {
+		if (
+			endpoints.includes('openai-video') ||
+			endpoints.some((ep: string) => ep.includes('video') || ep.includes('embedding') || ep.includes('rerank'))
+		) {
 			return false;
 		}
 	}
@@ -139,6 +139,10 @@ const KNOWN_GROUPS: ModelGroupInfo[] = [
 
 const GROUP_MAP = new Map<string, ModelGroupInfo>(KNOWN_GROUPS.map((g) => [g.id, g]));
 
+function getGroup(id: string): ModelGroupInfo {
+	return GROUP_MAP.get(id) || GROUP_MAP.get('other') || { id: 'other', name: '其他模型', order: 999 };
+}
+
 /**
  * Determine which brand/family group a model belongs to.
  */
@@ -150,17 +154,17 @@ export function getModelGroup(modelOrItem: any): ModelGroupInfo {
 
 	// 1. OpenAI (GPT, o1, o3, o4, chatgpt)
 	if (/(?:^|[-_./])(gpt|o1|o3|o4|chatgpt)(?:[-_./]|$)/i.test(combined) || combined.includes('openai')) {
-		return GROUP_MAP.get('openai')!;
+		return getGroup('openai');
 	}
 
 	// 2. Claude / Anthropic
 	if (combined.includes('claude') || combined.includes('anthropic')) {
-		return GROUP_MAP.get('claude')!;
+		return getGroup('claude');
 	}
 
 	// 3. DeepSeek
 	if (combined.includes('deepseek')) {
-		return GROUP_MAP.get('deepseek')!;
+		return getGroup('deepseek');
 	}
 
 	// 4. Gemini / Google
@@ -170,7 +174,7 @@ export function getModelGroup(modelOrItem: any): ModelGroupInfo {
 		combined.includes('learnlm') ||
 		combined.includes('google')
 	) {
-		return GROUP_MAP.get('gemini')!;
+		return getGroup('gemini');
 	}
 
 	// 5. Qwen / 通义千问
@@ -181,37 +185,37 @@ export function getModelGroup(modelOrItem: any): ModelGroupInfo {
 		combined.includes('tongyi') ||
 		combined.includes('aliyun')
 	) {
-		return GROUP_MAP.get('qwen')!;
+		return getGroup('qwen');
 	}
 
 	// 6. GLM / 智谱
 	if (combined.includes('glm') || combined.includes('chatglm') || combined.includes('zhipu')) {
-		return GROUP_MAP.get('glm')!;
+		return getGroup('glm');
 	}
 
 	// 7. Doubao / 豆包
 	if (combined.includes('doubao') || combined.includes('volcengine') || combined.includes('bytedance')) {
-		return GROUP_MAP.get('doubao')!;
+		return getGroup('doubao');
 	}
 
 	// 8. Kimi / Moonshot
 	if (combined.includes('moonshot') || combined.includes('kimi')) {
-		return GROUP_MAP.get('kimi')!;
+		return getGroup('kimi');
 	}
 
 	// 9. Grok / xAI
 	if (combined.includes('grok') || combined.includes('xai')) {
-		return GROUP_MAP.get('grok')!;
+		return getGroup('grok');
 	}
 
 	// 10. MiniMax
 	if (combined.includes('minimax') || combined.includes('abab')) {
-		return GROUP_MAP.get('minimax')!;
+		return getGroup('minimax');
 	}
 
 	// 11. Llama / Meta
 	if (combined.includes('llama') || combined.includes('meta-llama')) {
-		return GROUP_MAP.get('llama')!;
+		return getGroup('llama');
 	}
 
 	// 12. Mistral
@@ -221,42 +225,42 @@ export function getModelGroup(modelOrItem: any): ModelGroupInfo {
 		combined.includes('codestral') ||
 		combined.includes('pixtral')
 	) {
-		return GROUP_MAP.get('mistral')!;
+		return getGroup('mistral');
 	}
 
 	// 13. Yi / 零一万物
 	if (combined.includes('yi-') || combined.includes('01-ai')) {
-		return GROUP_MAP.get('yi')!;
+		return getGroup('yi');
 	}
 
 	// 14. ERNIE / 文心一言
 	if (combined.includes('ernie') || combined.includes('wenxin')) {
-		return GROUP_MAP.get('ernie')!;
+		return getGroup('ernie');
 	}
 
 	// 15. Spark / 讯飞星火
 	if (combined.includes('spark') || combined.includes('xfyun')) {
-		return GROUP_MAP.get('spark')!;
+		return getGroup('spark');
 	}
 
 	// 16. Step / 阶跃星辰
 	if (combined.includes('step-') || combined.includes('stepfun')) {
-		return GROUP_MAP.get('step')!;
+		return getGroup('step');
 	}
 
 	// 17. Baichuan / 百川
 	if (combined.includes('baichuan')) {
-		return GROUP_MAP.get('baichuan')!;
+		return getGroup('baichuan');
 	}
 
 	// Fallback to owned_by
 	const ownedBy = String(model?.owned_by || model?.openai?.owned_by || '').trim().toLowerCase();
 	if (ownedBy && ownedBy !== 'openai' && ownedBy !== 'unknown') {
-		if (ownedBy.includes('anthropic')) return GROUP_MAP.get('claude')!;
-		if (ownedBy.includes('google')) return GROUP_MAP.get('gemini')!;
-		if (ownedBy.includes('deepseek')) return GROUP_MAP.get('deepseek')!;
-		if (ownedBy.includes('meta')) return GROUP_MAP.get('llama')!;
+		if (ownedBy.includes('anthropic')) return getGroup('claude');
+		if (ownedBy.includes('google')) return getGroup('gemini');
+		if (ownedBy.includes('deepseek')) return getGroup('deepseek');
+		if (ownedBy.includes('meta')) return getGroup('llama');
 	}
 
-	return GROUP_MAP.get('other')!;
+	return getGroup('other');
 }
