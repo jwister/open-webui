@@ -107,6 +107,11 @@ export function isTextChatModel(model: any): boolean {
 		if (pat.test(text)) return false;
 	}
 
+	// 严格过滤：必须属于已知主流对话模型品牌，过滤掉“其他模型”
+	if (getModelGroup(model).id === 'other') {
+		return false;
+	}
+
 	return true;
 }
 
@@ -129,11 +134,16 @@ const KNOWN_GROUPS: ModelGroupInfo[] = [
 	{ id: 'minimax', name: 'MiniMax', order: 100 },
 	{ id: 'llama', name: 'Llama (Meta)', order: 110 },
 	{ id: 'mistral', name: 'Mistral', order: 120 },
-	{ id: 'yi', name: 'Yi (零一万物)', order: 130 },
-	{ id: 'ernie', name: '文心一言', order: 140 },
-	{ id: 'spark', name: '讯飞星火', order: 150 },
-	{ id: 'step', name: '阶跃星辰', order: 160 },
-	{ id: 'baichuan', name: '百川智能', order: 170 },
+	{ id: 'hunyuan', name: '腾讯混元', order: 130 },
+	{ id: 'sensenova', name: '商汤日日新', order: 140 },
+	{ id: 'yi', name: 'Yi (零一万物)', order: 150 },
+	{ id: 'ernie', name: '文心一言', order: 160 },
+	{ id: 'spark', name: '讯飞星火', order: 170 },
+	{ id: 'step', name: '阶跃星辰', order: 180 },
+	{ id: 'baichuan', name: '百川智能', order: 190 },
+	{ id: 'phi', name: 'Phi (微软)', order: 200 },
+	{ id: 'cohere', name: 'Command (Cohere)', order: 210 },
+	{ id: 'perplexity', name: 'Perplexity', order: 220 },
 	{ id: 'other', name: '其他模型', order: 999 }
 ];
 
@@ -183,7 +193,8 @@ export function getModelGroup(modelOrItem: any): ModelGroupInfo {
 		combined.includes('qwq') ||
 		combined.includes('qvq') ||
 		combined.includes('tongyi') ||
-		combined.includes('aliyun')
+		combined.includes('aliyun') ||
+		combined.includes('alibaba')
 	) {
 		return getGroup('qwen');
 	}
@@ -194,7 +205,12 @@ export function getModelGroup(modelOrItem: any): ModelGroupInfo {
 	}
 
 	// 7. Doubao / 豆包
-	if (combined.includes('doubao') || combined.includes('volcengine') || combined.includes('bytedance')) {
+	if (
+		combined.includes('doubao') ||
+		combined.includes('skylark') ||
+		combined.includes('volcengine') ||
+		combined.includes('bytedance')
+	) {
 		return getGroup('doubao');
 	}
 
@@ -228,29 +244,59 @@ export function getModelGroup(modelOrItem: any): ModelGroupInfo {
 		return getGroup('mistral');
 	}
 
-	// 13. Yi / 零一万物
+	// 13. Hunyuan / 腾讯混元
+	if (combined.includes('hunyuan') || combined.includes('tencent')) {
+		return getGroup('hunyuan');
+	}
+
+	// 14. SenseNova / 商汤日日新
+	if (
+		combined.includes('sensenova') ||
+		combined.includes('sensechat') ||
+		combined.includes('shangtang') ||
+		combined.includes('sensetime')
+	) {
+		return getGroup('sensenova');
+	}
+
+	// 15. Yi / 零一万物
 	if (combined.includes('yi-') || combined.includes('01-ai')) {
 		return getGroup('yi');
 	}
 
-	// 14. ERNIE / 文心一言
-	if (combined.includes('ernie') || combined.includes('wenxin')) {
+	// 16. ERNIE / 文心一言
+	if (combined.includes('ernie') || combined.includes('wenxin') || combined.includes('baidu')) {
 		return getGroup('ernie');
 	}
 
-	// 15. Spark / 讯飞星火
-	if (combined.includes('spark') || combined.includes('xfyun')) {
+	// 17. Spark / 讯飞星火
+	if (combined.includes('spark') || combined.includes('xfyun') || combined.includes('iflytek')) {
 		return getGroup('spark');
 	}
 
-	// 16. Step / 阶跃星辰
+	// 18. Step / 阶跃星辰
 	if (combined.includes('step-') || combined.includes('stepfun')) {
 		return getGroup('step');
 	}
 
-	// 17. Baichuan / 百川
+	// 19. Baichuan / 百川
 	if (combined.includes('baichuan')) {
 		return getGroup('baichuan');
+	}
+
+	// 20. Phi / 微软
+	if (/(?:^|[-_./])phi(?:[-_./]|$|\d)/i.test(combined) || combined.includes('microsoft')) {
+		return getGroup('phi');
+	}
+
+	// 21. Cohere / Command
+	if (combined.includes('command-r') || combined.includes('cohere')) {
+		return getGroup('cohere');
+	}
+
+	// 22. Perplexity
+	if (combined.includes('sonar') || combined.includes('perplexity')) {
+		return getGroup('perplexity');
 	}
 
 	// Fallback to owned_by
@@ -260,6 +306,20 @@ export function getModelGroup(modelOrItem: any): ModelGroupInfo {
 		if (ownedBy.includes('google')) return getGroup('gemini');
 		if (ownedBy.includes('deepseek')) return getGroup('deepseek');
 		if (ownedBy.includes('meta')) return getGroup('llama');
+		if (ownedBy.includes('alibaba') || ownedBy.includes('qwen')) return getGroup('qwen');
+		if (ownedBy.includes('zhipu') || ownedBy.includes('glm')) return getGroup('glm');
+		if (ownedBy.includes('bytedance') || ownedBy.includes('doubao')) return getGroup('doubao');
+		if (ownedBy.includes('moonshot') || ownedBy.includes('kimi')) return getGroup('kimi');
+		if (ownedBy.includes('minimax')) return getGroup('minimax');
+		if (ownedBy.includes('mistral')) return getGroup('mistral');
+		if (ownedBy.includes('tencent') || ownedBy.includes('hunyuan')) return getGroup('hunyuan');
+		if (ownedBy.includes('baidu')) return getGroup('ernie');
+		if (ownedBy.includes('sensetime') || ownedBy.includes('shangtang')) return getGroup('sensenova');
+		if (ownedBy.includes('stepfun')) return getGroup('step');
+		if (ownedBy.includes('baichuan')) return getGroup('baichuan');
+		if (ownedBy.includes('microsoft')) return getGroup('phi');
+		if (ownedBy.includes('cohere')) return getGroup('cohere');
+		if (ownedBy.includes('perplexity')) return getGroup('perplexity');
 	}
 
 	return getGroup('other');

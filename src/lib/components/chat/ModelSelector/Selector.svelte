@@ -240,6 +240,7 @@
 		const groupCounts: Record<string, { id: string; name: string; order: number; count: number }> = {};
 		for (const item of (chatItems ?? [])) {
 			const g = getModelGroup(item);
+			if (g.id === 'other') continue;
 			if (!groupCounts[g.id]) {
 				groupCounts[g.id] = { id: g.id, name: g.name, order: g.order, count: 0 };
 			}
@@ -325,6 +326,7 @@
 					})
 	)
 		.filter((item) => includeHidden || !(item.model?.info?.meta?.hidden ?? false))
+		.filter((item) => getModelGroup(item).id !== 'other')
 		.filter((item) => (selectedGroup ? getModelGroup(item).id === selectedGroup : true));
 
 	$: groupedModelData = (() => {
@@ -335,6 +337,7 @@
 
 		for (const item of (rawFilteredItems ?? [])) {
 			const g = getModelGroup(item);
+			if (g.id === 'other') continue;
 			if (!groupMap.has(g.id)) {
 				groupMap.set(g.id, { id: g.id, name: g.name, order: g.order, items: [] });
 			}
