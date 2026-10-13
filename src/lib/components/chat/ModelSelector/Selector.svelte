@@ -39,6 +39,7 @@
 		resolveLocalizedModelDescription,
 		resolveLocalizedModelName
 	} from '$lib/utils/localizedContent';
+	import { getModelGroup, isTextChatModel } from '$lib/utils/modelFilter';
 	import { getModels } from '$lib/apis';
 
 	import ChevronDown from '$lib/components/icons/ChevronDown.svelte';
@@ -76,7 +77,7 @@
 		[key: string]: any;
 	}[] = [];
 
-	export let className = 'w-[20rem]';
+	export let className = 'w-[24rem]';
 	export let triggerClassName = 'text-lg';
 	export let placement: 'top' | 'bottom' | 'auto' = 'bottom';
 	export let align: 'start' | 'end' = 'start';
@@ -224,8 +225,30 @@
 	const getProviderPoolKey = (connection, model: string) =>
 		`${connection.provider}:${connection.idx}:${model}`;
 
+	let selectedGroup = '';
+	let collapsedGroups: Record<string, boolean> = {};
+
+	const toggleGroupCollapse = (groupId: string) => {
+		collapsedGroups[groupId] = !collapsedGroups[groupId];
+		collapsedGroups = { ...collapsedGroups };
+	};
+
+	$: chatItems = items.filter((item) => isTextChatModel(item.model ?? item));
+
+	$: availableGroups = (() => {
+		const groupCounts: Record<string, { id: string; name: string; order: number; count: number }> = {};
+		for (const item of chatItems) {
+			const g = getModelGroup(item);
+			if (!groupCounts[g.id]) {
+				groupCounts[g.id] = { id: g.id, name: g.name, order: g.order, count: 0 };
+			}
+			groupCounts[g.id].count++;
+		}
+		return Object.values(groupCounts).sort((a, b) => a.order - b.order);
+	})();
+
 	const fuse = new Fuse(
-		items.map((item) => {
+		chatItems.map((item) => {
 			const _item = {
 				...item,
 				modelName: resolveLocalizedModelName(item.model, $i18n.language),
@@ -243,7 +266,7 @@
 	const updateFuse = () => {
 		if (fuse) {
 			fuse.setCollection(
-				items.map((item) => {
+				chatItems.map((item) => {
 					const _item = {
 						...item,
 						modelName: resolveLocalizedModelName(item.model, $i18n.language),
@@ -256,17 +279,15 @@
 		}
 	};
 
-	$: if (items) {
+	$: if (chatItems) {
 		updateFuse();
 	}
 
-	$: filteredItems = (
+	$: rawFilteredItems = (
 		searchValue
 			? fuse
 					.search(searchValue)
-					.map((e) => {
-						return e.item;
-					})
+					.map((e) => e.item)
 					.filter((item) => {
 						if (selectedTag === '') {
 							return true;
@@ -286,8 +307,9 @@
 						} else if (selectedConnectionType === 'direct') {
 							return item.model?.direct;
 						}
+						return true;
 					})
-			: items
+			: chatItems
 					.filter((item) => {
 						if (selectedTag === '') {
 							return true;
@@ -306,8 +328,48 @@
 						} else if (selectedConnectionType === 'direct') {
 							return item.model?.direct;
 						}
+						return true;
 					})
-	).filter((item) => includeHidden || !(item.model?.info?.meta?.hidden ?? false));
+	)
+		.filter((item) => includeHidden || !(item.model?.info?.meta?.hidden ?? false))
+		.filter((item) => (selectedGroup ? getModelGroup(item).id === selectedGroup : true));
+
+	$: groupedModelData = (() => {
+		const groupMap = new Map<
+			string,
+			{ id: string; name: string; order: number; items: { item: any; flatIndex: number }[] }
+		>();
+
+		for (const item of rawFilteredItems) {
+			const g = getModelGroup(item);
+			if (!groupMap.has(g.id)) {
+				groupMap.set(g.id, { id: g.id, name: g.name, order: g.order, items: [] });
+			}
+			groupMap.get(g.id)!.items.push({ item, flatIndex: -1 });
+		}
+
+		const groups = Array.from(groupMap.values()).sort((a, b) => a.order - b.order);
+		let currentIndex = 0;
+		const flat: any[] = [];
+
+		for (const group of groups) {
+			group.items.sort((a, b) =>
+				String(a.item.label || a.item.value).localeCompare(String(b.item.label || b.item.value))
+			);
+			const isCollapsed = !searchValue && !selectedGroup && Boolean(collapsedGroups[group.id]);
+			for (const entry of group.items) {
+				if (!isCollapsed) {
+					entry.flatIndex = currentIndex++;
+					flat.push(entry.item);
+				}
+			}
+		}
+
+		return { groups, flat };
+	})();
+
+	$: filteredItems = groupedModelData.flat;
+	$: modelGroups = groupedModelData.groups;
 
 	$: sanitizedSearchValue = searchValue.trim();
 	$: downloadTargets =
@@ -351,6 +413,7 @@
 	$: if (
 		selectedTag !== undefined ||
 		selectedConnectionType !== undefined ||
+		selectedGroup !== undefined ||
 		searchValue !== undefined
 	) {
 		resetView();
@@ -399,16 +462,6 @@
 		} else {
 			// The selected model is not visible, default to first item in filtered list
 			selectedModelIdx = 0;
-		}
-
-		// Set the virtual scroll position so the selected item is rendered and centered
-		const targetScrollTop = Math.max(0, selectedModelIdx * ITEM_HEIGHT - 128 + ITEM_HEIGHT / 2);
-		listScrollTop = targetScrollTop;
-
-		await tick();
-
-		if (listContainer) {
-			listContainer.scrollTop = targetScrollTop;
 		}
 
 		await tick();
@@ -855,39 +908,8 @@
 		deleteModelTarget = null;
 	};
 
-	const ITEM_HEIGHT = 32;
-	const OVERSCAN = 10;
-
 	let listScrollTop = 0;
 	let listContainer;
-	let listViewportHeight = 288;
-
-	const trackListViewport = (node: HTMLElement) => {
-		const updateHeight = () => {
-			listViewportHeight = node.clientHeight || 288;
-		};
-
-		updateHeight();
-
-		if (!('ResizeObserver' in window)) {
-			return { destroy() {} };
-		}
-
-		const observer = new ResizeObserver(updateHeight);
-		observer.observe(node);
-
-		return {
-			destroy() {
-				observer.disconnect();
-			}
-		};
-	};
-
-	$: visibleStart = Math.max(0, Math.floor(listScrollTop / ITEM_HEIGHT) - OVERSCAN);
-	$: visibleEnd = Math.min(
-		filteredItems.length,
-		Math.ceil((listScrollTop + listViewportHeight) / ITEM_HEIGHT) + OVERSCAN
-	);
 </script>
 
 <ConfirmDialog
@@ -1042,6 +1064,37 @@
 						</div>
 					{/if}
 
+					{#if availableGroups.length > 1}
+						<div
+							class="mx-1 mb-1 flex items-center gap-1 overflow-x-auto px-1 py-0.5 scrollbar-none border-b border-gray-100/60 dark:border-gray-800/50"
+						>
+							<button
+								type="button"
+								class="shrink-0 rounded-lg px-2 py-0.5 text-[0.6875rem] font-medium transition-colors {selectedGroup === ''
+									? 'bg-gray-200 text-gray-900 dark:bg-gray-700 dark:text-gray-100 font-semibold shadow-xs'
+									: 'text-gray-500 hover:bg-gray-100 hover:text-gray-800 dark:text-gray-400 dark:hover:bg-gray-800/60 dark:hover:text-gray-200'}"
+								on:click={() => {
+									selectedGroup = '';
+								}}
+							>
+								{$i18n.t('All')} ({chatItems.length})
+							</button>
+							{#each availableGroups as g (g.id)}
+								<button
+									type="button"
+									class="shrink-0 rounded-lg px-2 py-0.5 text-[0.6875rem] font-medium transition-colors {selectedGroup === g.id
+										? 'bg-gray-200 text-gray-900 dark:bg-gray-700 dark:text-gray-100 font-semibold shadow-xs'
+										: 'text-gray-500 hover:bg-gray-100 hover:text-gray-800 dark:text-gray-400 dark:hover:bg-gray-800/60 dark:hover:text-gray-200'}"
+									on:click={() => {
+										selectedGroup = selectedGroup === g.id ? '' : g.id;
+									}}
+								>
+									{g.name} ({g.count})
+								</button>
+							{/each}
+						</div>
+					{/if}
+
 					<div class="group relative flex min-h-0 flex-1 flex-col">
 						{#if filteredItems.length === 0}
 							{#if items.length === 0 && $user?.role === 'admin'}
@@ -1079,36 +1132,62 @@
 						{:else}
 							<!-- svelte-ignore a11y-no-static-element-interactions -->
 							<div
-								class="min-h-0 flex-1 overflow-y-auto"
-								style="max-height: 18rem;"
+								class="min-h-0 flex-1 overflow-y-auto px-0.5"
+								style="max-height: 20rem;"
 								role="listbox"
 								aria-label={$i18n.t('Available models')}
 								bind:this={listContainer}
-								use:trackListViewport
 								on:scroll={() => {
 									listScrollTop = listContainer.scrollTop;
 								}}
 							>
-								<div style="height: {visibleStart * ITEM_HEIGHT}px;" />
-								{#each filteredItems.slice(visibleStart, visibleEnd) as item, i (item.value)}
-									{@const index = visibleStart + i}
-									<ModelItem
-										{selectedModelIdx}
-										{item}
-										{index}
-										value={primaryValue}
-										{pinModelHandler}
-										{unloadModelHandler}
-										{deleteModelHandler}
-										{selectionOnly}
-										{compareEnabled}
-										{selectedValues}
-										onClick={() => {
-											selectItem(item, index);
-										}}
-									/>
+								{#each modelGroups as group (group.id)}
+									{#if group.items.length > 0}
+										{@const isCollapsed = !searchValue && !selectedGroup && Boolean(collapsedGroups[group.id])}
+										{#if modelGroups.length > 1}
+											<div
+												class="sticky top-0 z-10 my-0.5 flex items-center justify-between rounded-lg bg-white/95 px-2 py-1 text-gray-500 select-none backdrop-blur-xs dark:bg-gray-850/95 dark:text-gray-400 border-b border-gray-100/60 dark:border-gray-800/40"
+											>
+												<button
+													type="button"
+													class="flex w-full items-center gap-1.5 text-left text-[0.6875rem] font-semibold text-gray-600 transition-colors hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100"
+													on:click={() => toggleGroupCollapse(group.id)}
+												>
+													<ChevronDown
+														className="size-2.5 transition-transform duration-150 {isCollapsed ? '-rotate-90' : ''}"
+														strokeWidth="2.5"
+													/>
+													<span>{group.name}</span>
+													<span
+														class="ml-auto rounded-full bg-gray-100 px-1.5 py-0.2 text-[0.625rem] font-normal text-gray-500 dark:bg-gray-800 dark:text-gray-400"
+													>
+														{group.items.length}
+													</span>
+												</button>
+											</div>
+										{/if}
+
+										{#if !isCollapsed}
+											{#each group.items as entry (entry.item.value)}
+												<ModelItem
+													{selectedModelIdx}
+													item={entry.item}
+													index={entry.flatIndex}
+													value={primaryValue}
+													{pinModelHandler}
+													{unloadModelHandler}
+													{deleteModelHandler}
+													{selectionOnly}
+													{compareEnabled}
+													{selectedValues}
+													onClick={() => {
+														selectItem(entry.item, entry.flatIndex);
+													}}
+												/>
+											{/each}
+										{/if}
+									{/if}
 								{/each}
-								<div style="height: {(filteredItems.length - visibleEnd) * ITEM_HEIGHT}px;" />
 							</div>
 						{/if}
 

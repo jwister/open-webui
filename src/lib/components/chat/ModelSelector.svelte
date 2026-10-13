@@ -6,6 +6,7 @@
 
 	import { updateUserSettings } from '$lib/apis/users';
 	import { resolveLocalizedModelName } from '$lib/utils/localizedContent';
+	import { isTextChatModel } from '$lib/utils/modelFilter';
 	import equal from 'fast-deep-equal';
 	const i18n = getContext('i18n');
 
@@ -22,6 +23,8 @@
 	let selector;
 
 	export const open = () => selector?.open();
+
+	$: chatModels = $models.filter(isTextChatModel);
 
 	const saveDefaultModel = async () => {
 		const hasEmptyModel = selectedModels.filter((it) => it === '');
@@ -45,9 +48,10 @@
 		await updateUserSettings(localStorage.token, { ui: { pinnedModels: $settings.pinnedModels } });
 	};
 
-	$: if (selectedModels.length > 0 && $models.length > 0) {
+	$: if (selectedModels.length > 0 && chatModels.length > 0) {
+		const validIds = chatModels.map((m) => m.id);
 		const _selectedModels = selectedModels.map((model) =>
-			$models.map((m) => m.id).includes(model) ? model : ''
+			validIds.includes(model) ? model : (chatModels[0]?.id ?? '')
 		);
 
 		if (!equal(_selectedModels, selectedModels)) {
@@ -68,7 +72,7 @@
 					bind:this={selector}
 					id="model"
 					placeholder={$i18n.t('Select a model')}
-					items={$models.map((model) => ({
+					items={chatModels.map((model) => ({
 						value: model.id,
 						label: resolveLocalizedModelName(model, $i18n.language),
 						model: model
