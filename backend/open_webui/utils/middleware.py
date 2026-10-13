@@ -2809,7 +2809,7 @@ async def process_chat_payload(request, form_data, user, metadata, model):
     use_builtin_tools = is_note_chat or (
         bool(metadata.get('session_id'))
         and metadata.get('params', {}).get('function_calling') != 'legacy'
-        and (model.get('info', {}).get('meta', {}).get('capabilities') or {}).get('builtin_tools', True)
+        and (model.get('info', {}).get('meta', {}).get('capabilities') or {}).get('builtin_tools', False)
     )
 
     if skill_ids or use_builtin_tools:

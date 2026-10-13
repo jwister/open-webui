@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import copy
 import hashlib
 import logging
 import re
@@ -1206,11 +1207,11 @@ def get_azure_allowed_params(api_version: str) -> set[str]:
 
 def is_openai_new_model(model: str) -> bool:
     model_lower = model.lower()
-    # o-series models (o1, o3, o4, o5, ...)
-    if re.match(r'^o\d+', model_lower):
+    # o-series models (o1, o3, o4, o5, ...), including prefixed model IDs
+    if re.search(r'(?:^|[./_:-])o\d+(?:$|[-_.])', model_lower):
         return True
-    # gpt-N where N >= 5 (gpt-5, gpt-5.2, gpt-6, ...)
-    m = re.match(r'^gpt-(\d+)', model_lower)
+    # gpt-N where N >= 5 (gpt-5, gpt-5.2, gpt-6, ...), including prefixed model IDs
+    m = re.search(r'(?:^|[./_:-])gpt-(\d+)', model_lower)
     if m and int(m.group(1)) >= 5:
         return True
     return False
@@ -1578,10 +1579,26 @@ async def generate_chat_completion(
             'role': user.role,
         }
 
+    supported_endpoints = model.get('supported_endpoint_types') or []
+    is_responses = (
+        api_config.get('api_type') == 'responses'
+        or ('openai-response' in supported_endpoints and 'openai' not in supported_endpoints)
+        or (
+            is_openai_new_model(payload.get('model', ''))
+            and bool(payload.get('tools'))
+            and 'openai-response' in supported_endpoints
+        )
+    )
+
+    fallback_responses_payload = copy.deepcopy(payload) if not is_responses else None
+
     # Check if model is a reasoning model that needs special handling
-    if is_openai_new_model(payload['model']):
-        payload = openai_reasoning_model_handler(payload)
-    elif 'api.openai.com' not in url:
+    if not is_responses and is_openai_new_model(payload['model']):
+        if 'api.openai.com' in url:
+            payload = openai_reasoning_model_handler(payload)
+        if payload.get('tools') and 'reasoning_effort' not in payload:
+            payload['reasoning_effort'] = 'none'
+    elif not is_responses and 'api.openai.com' not in url:
         # Remove "max_completion_tokens" from the payload for backward compatibility
         if 'max_completion_tokens' in payload:
             payload['max_tokens'] = payload['max_completion_tokens']
@@ -1598,8 +1615,6 @@ async def generate_chat_completion(
             payload['logit_bias'] = JSONCodec.loads(logit_bias)
 
     headers, cookies = await get_headers_and_cookies(request, url, key, api_config, metadata, user=user)
-
-    is_responses = api_config.get('api_type') == 'responses'
 
     # Explicit continuation keeps llama.cpp from echoing the prefill in streamed replies.
     if (
@@ -1679,6 +1694,37 @@ async def generate_chat_completion(
             ssl=AIOHTTP_CLIENT_SESSION_SSL,
             timeout=get_client_timeout(stream=is_streaming_request),
         )
+
+        if (
+            not is_responses
+            and r.status >= 400
+            and fallback_responses_payload is not None
+            and not (api_config.get('azure') or api_config.get('provider') == 'azure')
+        ):
+            err_preview = await r.text()
+            if '/v1/responses' in err_preview:
+                log.info(
+                    'Model %s requires /v1/responses; auto-retrying via Responses API',
+                    requested_model,
+                )
+                await cleanup_response(r)
+                is_responses = True
+                model['supported_endpoint_types'] = ['openai-response']
+                retry_dict = convert_to_responses_payload(fallback_responses_payload)
+                if not is_streaming_request:
+                    retry_dict.pop('stream_options', None)
+                r = await session.request(
+                    method='POST',
+                    url=f'{url}/responses',
+                    data=JSONCodec.dumps(retry_dict),
+                    headers=headers,
+                    cookies=cookies,
+                    ssl=AIOHTTP_CLIENT_SESSION_SSL,
+                    timeout=get_client_timeout(stream=is_streaming_request),
+                )
+            else:
+                # Re-attach consumed body so normal error handling below can read it
+                r._body = err_preview.encode('utf-8')
 
         # Check if response is SSE
         if 'text/event-stream' in r.headers.get('Content-Type', ''):

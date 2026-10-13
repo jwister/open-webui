@@ -371,9 +371,13 @@ async def fetch_newapi_pricing_models(url: str | None = None) -> dict[str, Any] 
                 models: list[dict[str, Any]] = []
                 seen_ids: set[str] = set()
                 for item in raw_list:
+                    supported_endpoint_types: list[str] = []
                     if isinstance(item, dict):
                         model_name = str(item.get('model_name') or item.get('id') or '').strip()
                         owned_by = str(item.get('owner_by') or item.get('owned_by') or 'openai').strip() or 'openai'
+                        raw_endpoints = item.get('supported_endpoint_types')
+                        if isinstance(raw_endpoints, list):
+                            supported_endpoint_types = [str(ep) for ep in raw_endpoints if ep]
                     elif isinstance(item, str):
                         model_name = item.strip()
                         owned_by = 'openai'
@@ -390,6 +394,7 @@ async def fetch_newapi_pricing_models(url: str | None = None) -> dict[str, Any] 
                             'object': 'model',
                             'created': 1626777600,
                             'owned_by': owned_by,
+                            'supported_endpoint_types': supported_endpoint_types,
                         }
                     )
 
