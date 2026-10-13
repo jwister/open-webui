@@ -327,7 +327,15 @@ GEMINI_API_BASE_URL = os.getenv('GEMINI_API_BASE_URL', '')
 
 
 if OPENAI_API_BASE_URL == '':
-    OPENAI_API_BASE_URL = 'https://api.openai.com/v1'
+    _new_api_base_url = os.getenv('NEW_API_BASE_URL', '').strip().rstrip('/')
+    if _new_api_base_url:
+        for _suffix in ('/api/v1', '/v1'):
+            if _new_api_base_url.endswith(_suffix):
+                _new_api_base_url = _new_api_base_url[: -len(_suffix)].rstrip('/')
+                break
+        OPENAI_API_BASE_URL = f'{_new_api_base_url}/v1'
+    else:
+        OPENAI_API_BASE_URL = 'https://api.openai.com/v1'
 else:
     if OPENAI_API_BASE_URL.endswith('/'):
         OPENAI_API_BASE_URL = OPENAI_API_BASE_URL[:-1]

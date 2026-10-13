@@ -36,28 +36,39 @@ async def get_newapi_base_url() -> str:
     env_url = os.getenv('NEW_API_BASE_URL', '').strip()
     if env_url:
         base_url = _strip_v1_suffix(env_url)
-        await _ensure_openai_base_url(base_url)
+        await _ensure_openai_base_url(base_url, force=True)
         return base_url
 
     api_base_urls = await Config.get('openai.api_base_urls') or []
     for raw_url in api_base_urls:
         if raw_url and 'api.openai.com' not in raw_url:
-            return _strip_v1_suffix(raw_url)
+            base_url = _strip_v1_suffix(raw_url)
+            await _ensure_openai_base_url(base_url)
+            return base_url
 
     base_url = _strip_v1_suffix(DEFAULT_NEW_API_BASE_URL)
     await _ensure_openai_base_url(base_url)
     return base_url
 
 
-async def _ensure_openai_base_url(newapi_base_url: str) -> None:
+async def _ensure_openai_base_url(newapi_base_url: str, force: bool = False) -> None:
     """
-    If Open WebUI's openai.api_base_urls is still only pointing to the default
-    api.openai.com, point it to {newapi_base_url}/v1 so models and chat work out-of-the-box.
+    Ensure Open WebUI's openai.api_base_urls points to {newapi_base_url}/v1
+    so models and chat completion requests route to New API out-of-the-box.
     """
     try:
         api_base_urls = await Config.get('openai.api_base_urls') or []
+        enable_openai = await Config.get('openai.enable')
         target_v1_url = f'{newapi_base_url.rstrip("/")}/v1'
-        if not api_base_urls or api_base_urls == ['https://api.openai.com/v1']:
+        should_update = (
+            force
+            or not enable_openai
+            or not api_base_urls
+            or api_base_urls == ['https://api.openai.com/v1']
+            or api_base_urls == [f'{DEFAULT_NEW_API_BASE_URL}/v1']
+            or (len(api_base_urls) == 1 and _strip_v1_suffix(api_base_urls[0]) == newapi_base_url.rstrip('/'))
+        )
+        if should_update and (not enable_openai or api_base_urls != [target_v1_url]):
             await Config.upsert(
                 {
                     'openai.enable': True,
@@ -325,3 +336,65 @@ def get_user_newapi_key(user: UserModel | None, default_key: str | None = None) 
             if isinstance(user_key, str) and user_key.strip():
                 return user_key.strip()
     return default_key
+
+
+async def fetch_newapi_pricing_models(url: str | None = None) -> dict[str, Any] | None:
+    """
+    Fetch available models directly from New API's Model Square endpoint (/api/pricing)
+    and return them in OpenAI-compatible /v1/models format.
+    """
+    base_url = _strip_v1_suffix(url) if (url and 'api.openai.com' not in url) else await get_newapi_base_url()
+    if not base_url:
+        return None
+
+    timeout = aiohttp.ClientTimeout(total=10)
+    try:
+        async with aiohttp.ClientSession(timeout=timeout, trust_env=True) as session:
+            async with session.get(
+                f'{base_url}/api/pricing',
+                ssl=AIOHTTP_CLIENT_SESSION_SSL,
+            ) as resp:
+                if resp.status != 200:
+                    return None
+                pricing_json = await resp.json(loads=JSONCodec.loads)
+                if not isinstance(pricing_json, dict):
+                    return None
+                raw_list = pricing_json.get('data')
+                if not isinstance(raw_list, list):
+                    return None
+
+                models: list[dict[str, Any]] = []
+                seen_ids: set[str] = set()
+                for item in raw_list:
+                    if isinstance(item, dict):
+                        model_name = str(item.get('model_name') or item.get('id') or '').strip()
+                        owned_by = str(item.get('owner_by') or item.get('owned_by') or 'openai').strip() or 'openai'
+                    elif isinstance(item, str):
+                        model_name = item.strip()
+                        owned_by = 'openai'
+                    else:
+                        continue
+
+                    if not model_name or model_name in seen_ids:
+                        continue
+                    seen_ids.add(model_name)
+                    models.append(
+                        {
+                            'id': model_name,
+                            'name': model_name,
+                            'object': 'model',
+                            'created': 1626777600,
+                            'owned_by': owned_by,
+                        }
+                    )
+
+                if models:
+                    return {
+                        'object': 'list',
+                        'data': models,
+                    }
+    except Exception as e:
+        log.warning('Failed to fetch models from New API /api/pricing (%s): %s', base_url, e)
+
+    return None
+

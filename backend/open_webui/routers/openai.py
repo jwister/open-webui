@@ -46,7 +46,11 @@ from open_webui.utils.headers import get_custom_headers, include_user_info_heade
 from open_webui.utils.json_codec import JSONCodec
 from open_webui.utils.misc import convert_logit_bias_input_to_json
 from open_webui.utils.model_ids import strip_provider_model_prefix
-from open_webui.utils.newapi import get_user_newapi_key
+from open_webui.utils.newapi import (
+    fetch_newapi_pricing_models,
+    get_newapi_base_url,
+    get_user_newapi_key,
+)
 from open_webui.utils.payload import (
     apply_model_params_to_body_openai,
     apply_system_prompt_to_body,
@@ -131,6 +135,9 @@ async def get_models_request(
     key = get_user_newapi_key(user, key)
     if is_anthropic_url(url):
         return await get_anthropic_models(url, key, user=user)
+    pricing_models = await fetch_newapi_pricing_models(url)
+    if pricing_models and pricing_models.get('data'):
+        return pricing_models
     return await send_get_request(request, f'{url}/models', key, user=user, config=config)
 
 
@@ -320,6 +327,7 @@ async def get_openai_config() -> dict:
 
 
 async def get_openai_runtime_config() -> tuple[bool, list[str], list[str], dict]:
+    await get_newapi_base_url()
     values = await Config.get_many('openai.enable', 'openai.api_base_urls', 'openai.api_keys', 'openai.api_configs')
     return (
         values.get('openai.enable'),
