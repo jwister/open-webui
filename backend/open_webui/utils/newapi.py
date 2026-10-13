@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import logging
 import os
+import re
 from typing import Any
 
 import aiohttp
@@ -343,6 +344,100 @@ def get_user_newapi_key(user: UserModel | None, default_key: str | None = None) 
     return default_key
 
 
+_CHAT_ENDPOINT_TYPES = frozenset(
+    {
+        'openai',
+        'openai-response',
+        'openai-response-compact',
+        'openai-alpha-search',
+        'anthropic',
+        'gemini',
+    }
+)
+
+_VIDEO_NAME_SUBSTRINGS = (
+    'video',
+    'sora',
+    'kling',
+    'vidu',
+    'cogvideo',
+    'hailuo',
+    'dream-machine',
+    'pika',
+    'animatediff',
+    'pixverse',
+    'viggle',
+    'runway',
+)
+
+_VIDEO_NAME_PATTERNS = (
+    re.compile(r'(?:^|[-_./])(veo|t2v|i2v|v2v)(?:[-_./]|$|\d)', re.IGNORECASE),
+    re.compile(r'(?:^|[-_./])wan(?:2(?:\.1)?)?(?:[-_./]|$)', re.IGNORECASE),
+    re.compile(r'(?:^|[-_./])luma(?:[-_./]|$)', re.IGNORECASE),
+    re.compile(r'(?:^|[-_./])gen-?[23](?:[-_./]|$)', re.IGNORECASE),
+)
+
+_NON_CHAT_NAME_SUBSTRINGS = (
+    'embedding',
+    'rerank',
+    'whisper',
+    'babbage',
+    'davinci',
+    'dall-e',
+    'midjourney',
+    'flux',
+    'stable-diffusion',
+    'sdxl',
+    'imagen',
+    'recraft',
+    'kolors',
+    'cosyvoice',
+    'chattts',
+    'text-similarity',
+    'text-search',
+)
+
+_NON_CHAT_NAME_PATTERNS = (
+    re.compile(r'(?:^|[-_./])tts(?:[-_./]|$|\d)', re.IGNORECASE),
+)
+
+
+def is_text_chat_model(model_name: str, supported_endpoint_types: list[str] | None = None) -> bool:
+    """
+    Check whether a model is a text conversational LLM model, filtering out
+    video generation, image generation, embedding, rerank, and audio/TTS models.
+    """
+    if not model_name or not isinstance(model_name, str):
+        return False
+
+    name_lower = model_name.strip().lower()
+
+    if supported_endpoint_types and isinstance(supported_endpoint_types, list):
+        endpoints = {str(ep).strip().lower() for ep in supported_endpoint_types if ep}
+        if 'openai-video' in endpoints or any('video' in ep for ep in endpoints):
+            return False
+        if not any(ep in _CHAT_ENDPOINT_TYPES for ep in endpoints):
+            return False
+
+    for sub in _VIDEO_NAME_SUBSTRINGS:
+        if sub in name_lower:
+            return False
+
+    for pat in _VIDEO_NAME_PATTERNS:
+        if pat.search(name_lower):
+            return False
+
+    for sub in _NON_CHAT_NAME_SUBSTRINGS:
+        if sub in name_lower:
+            return False
+
+    for pat in _NON_CHAT_NAME_PATTERNS:
+        if pat.search(name_lower):
+            return False
+
+    return True
+
+
 async def fetch_newapi_pricing_models(url: str | None = None) -> dict[str, Any] | None:
     """
     Fetch available models directly from New API's Model Square endpoint (/api/pricing)
@@ -385,6 +480,8 @@ async def fetch_newapi_pricing_models(url: str | None = None) -> dict[str, Any] 
                         continue
 
                     if not model_name or model_name in seen_ids:
+                        continue
+                    if not is_text_chat_model(model_name, supported_endpoint_types):
                         continue
                     seen_ids.add(model_name)
                     models.append(

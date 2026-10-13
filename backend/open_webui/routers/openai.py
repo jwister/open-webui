@@ -51,6 +51,7 @@ from open_webui.utils.newapi import (
     fetch_newapi_pricing_models,
     get_newapi_base_url,
     get_user_newapi_key,
+    is_text_chat_model,
 )
 from open_webui.utils.payload import (
     apply_model_params_to_body_openai,
@@ -823,7 +824,9 @@ async def get_all_models(request: Request, user: UserModel) -> dict[str, list]:
             return response
         return None
 
-    def is_supported_openai_models(model_id):
+    def is_supported_openai_models(model_id, supported_endpoint_types=None):
+        if not is_text_chat_model(model_id, supported_endpoint_types):
+            return False
         return not any(name in model_id for name in _UNSUPPORTED_OPENAI_MODEL_KEYWORDS)
 
     def get_merged_models(model_lists):
@@ -833,14 +836,15 @@ async def get_all_models(request: Request, user: UserModel) -> dict[str, list]:
         for idx, model_list in enumerate(model_lists):
             if model_list is not None and 'error' not in model_list:
                 base_url = api_base_urls[idx]
-                hostname = urlparse(base_url).hostname if base_url else None
                 api_config = api_configs.get(str(idx), api_configs.get(base_url, {}))
 
                 for model in model_list:
                     model_id = model.get('id') or model.get('name')
 
-                    if hostname == 'api.openai.com' and not is_supported_openai_models(model_id):
-                        # Skip unwanted OpenAI models
+                    if not model_id or not is_supported_openai_models(
+                        model_id, model.get('supported_endpoint_types')
+                    ):
+                        # Skip video generation and non-text-chat models
                         continue
 
                     if model_id and model_id not in models:
@@ -929,12 +933,15 @@ async def get_models(request: Request, url_idx: int | None = None, user=Depends(
 
                         response_data = await r.json(loads=JSONCodec.loads)
 
-                        if 'api.openai.com' in url:
-                            response_data['data'] = [
-                                model
-                                for model in response_data.get('data', [])
-                                if not any(name in model['id'] for name in _UNSUPPORTED_OPENAI_MODEL_KEYWORDS)
-                            ]
+                        response_data['data'] = [
+                            model
+                            for model in response_data.get('data', [])
+                            if is_text_chat_model(
+                                model.get('id') or model.get('name') or '',
+                                model.get('supported_endpoint_types'),
+                            )
+                            and not any(name in model.get('id', '') for name in _UNSUPPORTED_OPENAI_MODEL_KEYWORDS)
+                        ]
 
                         models = response_data
             except aiohttp.ClientError as e:

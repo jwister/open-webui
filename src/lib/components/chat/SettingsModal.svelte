@@ -16,7 +16,6 @@
 
 	import Modal from '../common/Modal.svelte';
 	import Account from './Settings/Account.svelte';
-	import About from './Settings/About.svelte';
 	import General from './Settings/General.svelte';
 	import Interface from './Settings/Interface.svelte';
 	import Notifications from './Settings/Notifications.svelte';
@@ -34,7 +33,6 @@
 	import Link from '../icons/Link.svelte';
 	import UserCircle from '../icons/UserCircle.svelte';
 	import SoundHigh from '../icons/SoundHigh.svelte';
-	import InfoCircle from '../icons/InfoCircle.svelte';
 	import WrenchAlt from '../icons/WrenchAlt.svelte';
 	import Face from '../icons/Face.svelte';
 	import AppNotification from '../icons/AppNotification.svelte';
@@ -151,8 +149,7 @@
 		data_controls: $i18n.t('Data'),
 		usage: $i18n.t('Data'),
 		archived_chats: $i18n.t('Data'),
-		account: $i18n.t('Profile'),
-		about: $i18n.t('Profile')
+		account: $i18n.t('Profile')
 	};
 	$: adminSettingGroups = {
 		'admin:general': $i18n.t('System'),
@@ -255,12 +252,6 @@
 			titleKey: 'settings.personal.account.title',
 			title: $i18n.t('settings.personal.account.title'),
 			searchPrefixes: ['settings.personal.account.']
-		},
-		{
-			id: 'about',
-			titleKey: 'settings.personal.about.title',
-			title: $i18n.t('settings.personal.about.title'),
-			searchPrefixes: ['settings.personal.about.']
 		}
 	];
 	let adminSettings: SettingsTab[];
@@ -728,19 +719,6 @@
 							<UserCircle className="size-3.5" strokeWidth="2" />
 							<span>{$i18n.t('settings.personal.account.title')}</span>
 						</button>
-					{:else if tabId === 'about'}
-						<button
-							role="tab"
-							aria-controls="tab-about"
-							aria-selected={selectedTab === 'about'}
-							class={tabButtonClass(selectedTab === 'about')}
-							on:click={() => {
-								selectTab('about');
-							}}
-						>
-							<InfoCircle className="size-3.5" strokeWidth="2" />
-							<span>{$i18n.t('settings.personal.about.title')}</span>
-						</button>
 					{/if}
 				{/each}
 			{/if}
@@ -848,8 +826,6 @@
 						toast.success($i18n.t('Settings saved successfully!'));
 					}}
 				/>
-			{:else if selectedTab === 'about'}
-				<About />
 			{:else if selectedTab === 'admin:general'}
 				<AdminGeneral saveHandler={adminConfigSaveHandler} />
 			{:else if selectedTab === 'admin:authentication'}
