@@ -97,11 +97,12 @@ fi
 
 PYTHON_CMD=$(command -v python3 || command -v python)
 UVICORN_WORKERS="${UVICORN_WORKERS:-1}"
+UVICORN_TIMEOUT_KEEP_ALIVE="${UVICORN_TIMEOUT_KEEP_ALIVE:-65}"
 
 if [[ "$#" -gt 0 ]]; then
   ARGS=("$@")
 else
-  ARGS=(--workers "$UVICORN_WORKERS" --ws-per-message-deflate "${UVICORN_WS_PER_MESSAGE_DEFLATE:-true}")
+  ARGS=(--workers "$UVICORN_WORKERS" --timeout-keep-alive "$UVICORN_TIMEOUT_KEEP_ALIVE" --ws-per-message-deflate "${UVICORN_WS_PER_MESSAGE_DEFLATE:-true}")
 fi
 
 exec env WEBUI_SECRET_KEY="${WEBUI_SECRET_KEY:-}" \

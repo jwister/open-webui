@@ -40,11 +40,15 @@ RUN apk add --no-cache git
 COPY package.json package-lock.json ./
 RUN npm ci --force
 
-COPY . .
+COPY scripts ./scripts
+COPY src ./src
+COPY static ./static
+COPY CHANGELOG.md i18next-parser.config.ts postcss.config.js svelte.config.js tailwind.config.js tsconfig.json vite.config.ts ./
 ENV APP_BUILD_HASH=${BUILD_HASH}
 RUN npm run build && \
     if [ "$USE_SLIM" = "true" ]; then find build -type f -name '*.map' -delete; fi
 
+COPY backend ./backend
 # Prepare backend ownership before the final copy so static assets occupy one layer.
 # Group 0 write access lets arbitrary OpenShift UIDs update these assets at startup.
 RUN chown -R $UID:$GID /app/backend && \

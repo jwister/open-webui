@@ -15,6 +15,7 @@ log = logging.getLogger(__name__)
 
 DEFAULT_NEW_API_BASE_URL = 'http://localhost:3000'
 AUTO_TOKEN_NAME = 'OpenWebUI-Auto'
+_SYNCED_OPENAI_BASE_URL: str | None = None
 
 
 def _strip_v1_suffix(url: str) -> str:
@@ -56,10 +57,13 @@ async def _ensure_openai_base_url(newapi_base_url: str, force: bool = False) -> 
     Ensure Open WebUI's openai.api_base_urls points to {newapi_base_url}/v1
     so models and chat completion requests route to New API out-of-the-box.
     """
+    global _SYNCED_OPENAI_BASE_URL
+    target_v1_url = f'{newapi_base_url.rstrip("/")}/v1'
+    if _SYNCED_OPENAI_BASE_URL == target_v1_url:
+        return
     try:
         api_base_urls = await Config.get('openai.api_base_urls') or []
         enable_openai = await Config.get('openai.enable')
-        target_v1_url = f'{newapi_base_url.rstrip("/")}/v1'
         should_update = (
             force
             or not enable_openai
@@ -76,6 +80,7 @@ async def _ensure_openai_base_url(newapi_base_url: str, force: bool = False) -> 
                     'openai.api_keys': [''],
                 }
             )
+        _SYNCED_OPENAI_BASE_URL = target_v1_url
     except Exception as e:
         log.debug('Failed to auto-update openai.api_base_urls: %s', e)
 

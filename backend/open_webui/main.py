@@ -298,7 +298,10 @@ async def emit_chat_list_event(metadata: dict, chat_id: str):
 class SPAStaticFiles(StaticFiles):
     async def get_response(self, path: str, scope):
         try:
-            return await super().get_response(path, scope)
+            response = await super().get_response(path, scope)
+            if path.lstrip('/').startswith('_app/immutable/'):
+                response.headers['Cache-Control'] = 'public, max-age=31536000, immutable'
+            return response
         except (HTTPException, StarletteHTTPException) as ex:
             if ex.status_code == 404:
                 if path.endswith('.js'):
