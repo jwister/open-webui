@@ -1,8 +1,5 @@
 services:
   open-webui:
-    build:
-      context: .
-      dockerfile: Dockerfile
     image: ${OPEN_WEBUI_IMAGE:-wenyou7/open-webui:latest}
     container_name: open-webui
     volumes:
