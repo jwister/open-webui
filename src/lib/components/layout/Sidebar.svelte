@@ -14,6 +14,7 @@
 		folders as _folders,
 		showSidebar,
 		showSearch,
+		showAuthModal,
 		mobile,
 		pinnedChats,
 		pinnedNotes,
@@ -403,6 +404,12 @@
 	};
 
 	const initSidebarData = async () => {
+		if (!$user) {
+			chatListReady = true;
+			allChatsLoaded = true;
+			return;
+		}
+
 		// Only fetch channels if the feature is enabled and user has permission
 		if (
 			$config?.features?.enable_channels &&
@@ -413,6 +420,12 @@
 
 		await initChatList();
 	};
+
+	let prevUser = $user;
+	$: if ($user && !prevUser) {
+		prevUser = $user;
+		initSidebarData();
+	}
 
 	const refreshChatRows = async () => {
 		const result = await refreshChatList(localStorage.token, { refreshPinned: true });
@@ -1105,6 +1118,19 @@
 									</div>
 								</button>
 							</UserMenu>
+						{:else}
+							<button
+								type="button"
+								class="cursor-pointer flex size-8.5 items-center justify-center transition group hover:bg-gray-100 dark:hover:bg-gray-900 rounded-lg text-gray-600 dark:text-gray-300"
+								aria-label={$i18n.t('Sign in')}
+								on:click={() => {
+									showAuthModal.set(true);
+								}}
+							>
+								<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-5">
+									<path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
+								</svg>
+							</button>
 						{/if}
 					</div>
 				</div>
@@ -1740,6 +1766,19 @@
 									<div class=" self-center font-normal truncate">{$user?.name}</div>
 								</button>
 							</UserMenu>
+						{:else}
+							<button
+								type="button"
+								class="flex items-center justify-center rounded-xl py-2 px-3 w-full bg-gray-100 hover:bg-gray-200 dark:bg-gray-850 dark:hover:bg-gray-800 text-gray-800 dark:text-gray-200 transition text-sm font-medium gap-2"
+								on:click={() => {
+									showAuthModal.set(true);
+								}}
+							>
+								<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-4">
+									<path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
+								</svg>
+								<span>{$i18n.t('Sign in')}</span>
+							</button>
 						{/if}
 					</div>
 				</div>

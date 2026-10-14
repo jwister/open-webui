@@ -622,6 +622,10 @@ async def get_optional_verified_user_from_request(request: Request):
         return None
 
 
+async def get_optional_verified_user(request: Request):
+    return await get_optional_verified_user_from_request(request)
+
+
 def get_admin_user(user=Depends(get_current_user)):
     if user.role != 'admin':
         raise HTTPException(

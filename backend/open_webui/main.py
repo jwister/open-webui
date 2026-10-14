@@ -220,6 +220,7 @@ from open_webui.utils.auth import (
     get_admin_user,
     get_http_authorization_cred,
     get_license_data,
+    get_optional_verified_user,
     get_verified_user,
 )
 from open_webui.utils.chat import (
@@ -899,7 +900,7 @@ if ENABLE_SCIM:
 
 @app.get('/api/models')
 @app.get('/api/v1/models')  # Experimental: Compatibility with OpenAI API
-async def get_models(request: Request, refresh: bool = False, user=Depends(get_verified_user)):
+async def get_models(request: Request, refresh: bool = False, user=Depends(get_optional_verified_user)):
     all_models = await get_all_models(request, refresh=refresh, user=user)
 
     # Filter out filter pipelines

@@ -29,6 +29,7 @@
 		audioQueue,
 		showControls,
 		showCallOverlay,
+		showAuthModal,
 		temporaryChatEnabled,
 		mobile,
 		chatTitle,
@@ -3091,6 +3092,12 @@
 	const submitHandler = async (userPrompt, { _raw = false } = {}) => {
 		console.log('submitHandler', userPrompt, $chatId);
 
+		if (!$user) {
+			toast.info($i18n.t('提示：要登录才能发消息'));
+			showAuthModal.set(true);
+			return;
+		}
+
 		const _selectedModels = selectedModels.map((modelId) =>
 			$models.map((m) => m.id).includes(modelId) ? modelId : ''
 		);
@@ -4486,6 +4493,11 @@
 											showChatVariablesModal = true;
 										}}
 										on:submit={async (e) => {
+											if (!$user) {
+												toast.info($i18n.t('提示：要登录才能发消息'));
+												showAuthModal.set(true);
+												return;
+											}
 											clearDraft(getDraftChatId());
 											if (e.detail || files.length > 0) {
 												await tick();
@@ -4578,6 +4590,11 @@
 											showChatVariablesModal = true;
 										}}
 										on:submit={async (e) => {
+											if (!$user) {
+												toast.info($i18n.t('提示：要登录才能发消息'));
+												showAuthModal.set(true);
+												return;
+											}
 											clearDraft(getDraftChatId());
 											if (e.detail || files.length > 0) {
 												await tick();
@@ -4630,6 +4647,11 @@
 										}
 									}}
 									on:submit={async (e) => {
+										if (!$user) {
+											toast.info($i18n.t('提示：要登录才能发消息'));
+											showAuthModal.set(true);
+											return;
+										}
 										clearDraft(getDraftChatId());
 										if (e.detail || files.length > 0) {
 											await tick();

@@ -28,6 +28,7 @@
 		banners,
 		showSettings,
 		showChangelog,
+		showAuthModal,
 		temporaryChatEnabled,
 		toolServers,
 		terminalServers,
@@ -43,6 +44,7 @@
 	import Sidebar from '$lib/components/layout/Sidebar.svelte';
 	import SettingsModal from '$lib/components/chat/SettingsModal.svelte';
 	import ChangelogModal from '$lib/components/ChangelogModal.svelte';
+	import AuthModal from '$lib/components/AuthModal.svelte';
 	import AccountPending from '$lib/components/layout/Overlay/AccountPending.svelte';
 	import UpdateInfoToast from '$lib/components/layout/UpdateInfoToast.svelte';
 	import Spinner from '$lib/components/common/Spinner.svelte';
@@ -194,6 +196,10 @@
 		});
 	};
 
+	const isPublicRoute = (pathname: string) => {
+		return pathname === '/';
+	};
+
 	const gotoAuth = async () => {
 		const currentUrl = `${$page.url.pathname}${$page.url.search}`;
 		await goto(`/auth?redirect=${encodeURIComponent(currentUrl)}`);
@@ -212,22 +218,30 @@
 
 	onMount(async () => {
 		if ($user === undefined || $user === null) {
-			await gotoAuth();
-			return;
-		}
-		if (!['user', 'admin'].includes($user?.role)) {
+			if (!isPublicRoute($page.url.pathname)) {
+				await gotoAuth();
+				return;
+			}
+		} else if (!['user', 'admin'].includes($user?.role)) {
 			return;
 		}
 
 		clearChatInputStorage();
 		try {
-			await Promise.all([
-				setBanners().catch((e) => console.error('Failed to load banners:', e)),
-				setTools().catch((e) => console.error('Failed to load tools:', e)),
-				setUserSettings(async () => {
-					await setModels().catch((e) => console.error('Failed to load models:', e));
-				})
-			]);
+			if ($user) {
+				await Promise.all([
+					setBanners().catch((e) => console.error('Failed to load banners:', e)),
+					setTools().catch((e) => console.error('Failed to load tools:', e)),
+					setUserSettings(async () => {
+						await setModels().catch((e) => console.error('Failed to load models:', e));
+					})
+				]);
+			} else {
+				await Promise.all([
+					setBanners().catch((e) => console.error('Failed to load banners:', e)),
+					setModels().catch((e) => console.error('Failed to load models:', e))
+				]);
+			}
 		} catch (e) {
 			console.error('Failed to load user settings:', e);
 			toast.error($i18n.t('Failed to load Interface settings'));
@@ -236,10 +250,12 @@
 
 		selectedTerminalId.set(localStorage.selectedTerminalId ?? null);
 
-		const loadToolServers = setToolServers().catch((e) => {
-			console.error('Failed to load tool servers:', e);
-			terminalServers.set([]);
-		});
+		const loadToolServers = $user
+			? setToolServers().catch((e) => {
+					console.error('Failed to load tool servers:', e);
+					terminalServers.set([]);
+			  })
+			: Promise.resolve();
 		if (
 			$page.url.searchParams.get('q') &&
 			($page.url.searchParams.get('submit') ?? 'true') === 'true'
@@ -409,7 +425,20 @@
 	}
 
 	$: if (loaded && ($user === undefined || $user === null)) {
-		void gotoAuth();
+		if (!isPublicRoute($page.url.pathname)) {
+			void gotoAuth();
+		}
+	}
+
+	let prevUser = $user;
+	$: if ($user && !prevUser) {
+		prevUser = $user;
+		setUserSettings(async () => {
+			await setModels().catch((e) => console.error('Failed to load models:', e));
+		});
+		setBanners().catch((e) => console.error('Failed to load banners:', e));
+		setTools().catch((e) => console.error('Failed to load tools:', e));
+		setToolServers().catch((e) => console.error('Failed to load tool servers:', e));
 	}
 
 	const checkForVersionUpdates = async () => {
@@ -424,6 +453,7 @@
 
 <SettingsModal bind:show={$showSettings} />
 <ChangelogModal bind:show={$showChangelog} />
+<AuthModal bind:show={$showAuthModal} />
 
 {#if version && compareVersion(version.latest, version.current) && ($settings?.showUpdateToast ?? true)}
 	<div class=" absolute bottom-8 right-8 z-50" in:fade={{ duration: 100 }}>
@@ -437,12 +467,12 @@
 	</div>
 {/if}
 
-{#if $user}
+{#if $user || isPublicRoute($page.url.pathname)}
 	<div class="app relative">
 		<div
 			class=" text-gray-700 dark:text-gray-100 bg-white dark:bg-gray-900 h-screen max-h-[100dvh] overflow-auto flex flex-row justify-end"
 		>
-			{#if !['user', 'admin'].includes($user?.role)}
+			{#if $user && !['user', 'admin'].includes($user?.role)}
 				<AccountPending />
 			{:else}
 				<Sidebar />
