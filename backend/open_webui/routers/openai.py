@@ -1672,12 +1672,19 @@ async def generate_chat_completion(
     requested_model = payload.get('model')
     # For Chat Completions, strip image parts from multimodal tool messages
     # (Chat Completions doesn't support images in tool content).
-    if not is_responses and 'messages' in payload:
-        for message in payload['messages']:
-            if message.get('role') == 'tool' and isinstance(message.get('content'), list):
-                message['content'] = ''.join(
-                    part.get('text', '') for part in message['content'] if part.get('type') in ('input_text', 'text')
-                )
+    if not is_responses:
+        if not payload.get('messages'):
+            user_msg = metadata.get('user_message') if metadata else None
+            if user_msg and user_msg.get('content'):
+                payload['messages'] = [{'role': 'user', 'content': user_msg.get('content', '')}]
+            elif form_data.get('prompt'):
+                payload['messages'] = [{'role': 'user', 'content': form_data['prompt']}]
+        if 'messages' in payload:
+            for message in payload['messages']:
+                if message.get('role') == 'tool' and isinstance(message.get('content'), list):
+                    message['content'] = ''.join(
+                        part.get('text', '') for part in message['content'] if part.get('type') in ('input_text', 'text')
+                    )
 
     is_streaming_request = bool(payload.get('stream', False))
     if not is_streaming_request:

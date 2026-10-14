@@ -2226,21 +2226,25 @@ async def load_messages_from_db(chat_id: str, message_id: str) -> Optional[list[
     Load the message chain from DB up to message_id,
     keeping only fields needed to rebuild the LLM payload.
     """
-    messages_map = await Chats.get_messages_map_by_chat_id(chat_id)
-    if not messages_map:
-        return None
+    try:
+        messages_map = await Chats.get_messages_map_by_chat_id(chat_id)
+        if not messages_map:
+            return None
 
-    db_messages = get_message_list(messages_map, message_id)
-    if not db_messages:
-        return None
+        db_messages = get_message_list(messages_map, message_id)
+        if not db_messages:
+            return None
 
-    return [
-        {k: v for k, v in msg.items() if k in MESSAGE_REPLAY_KEYS}
-        for msg in db_messages
-        if not (
-            msg.get('role') == 'assistant' and msg.get('error') and not msg.get('content') and not msg.get('output')
-        )
-    ]
+        return [
+            {k: v for k, v in msg.items() if k in MESSAGE_REPLAY_KEYS}
+            for msg in db_messages
+            if not (
+                msg.get('role') == 'assistant' and msg.get('error') and not msg.get('content') and not msg.get('output')
+            )
+        ]
+    except Exception as e:
+        log.warning('Failed to load messages from DB for chat %s: %s', chat_id, e)
+        return None
 
 
 def get_reasoning_format(model: dict) -> str | None:
@@ -2478,7 +2482,42 @@ async def process_chat_payload(request, form_data, user, metadata, model):
                 # Strip files field — it's been incorporated into content
                 message.pop('files', None)
 
+    # Ensure form_data['messages'] is not empty and has a user turn
+    has_user_turn = any(m.get('role') == 'user' for m in form_data.get('messages', []))
+    if not has_user_turn:
+        user_message = metadata.get('user_message')
+        if user_message:
+            system_message = get_system_message(form_data.get('messages', []))
+            user_turn = {
+                'role': 'user',
+                'content': user_message.get('content', ''),
+            }
+            image_files = [
+                f
+                for f in user_message.get('files', [])
+                if f.get('type') == 'image' or is_raster_image_content_type(f.get('content_type'))
+            ]
+            if image_files:
+                text_content = user_turn['content']
+                if isinstance(text_content, str):
+                    user_turn['content'] = [
+                        {'type': 'text', 'text': text_content},
+                        *[
+                            {
+                                'type': 'image_url',
+                                'image_url': {'url': f['url']},
+                            }
+                            for f in image_files
+                            if f.get('url')
+                        ],
+                    ]
+            form_data['messages'] = [system_message, user_turn] if system_message else [user_turn]
+        elif 'messages' not in form_data:
+            form_data['messages'] = []
+
     if regeneration_prompt:
+        if 'messages' not in form_data:
+            form_data['messages'] = []
         form_data['messages'].append({'role': 'user', 'content': regeneration_prompt})
 
     if is_saved_chat_id(chat_id) and user_message_id:

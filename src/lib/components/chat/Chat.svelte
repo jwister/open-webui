@@ -3493,62 +3493,59 @@
 			params?.stream_response ??
 			true;
 		// Always include system prompt — backend extracts it and prepends to DB messages.
-		// Only temp chats need conversation messages (persisted chats load from DB).
 		let messages: any[] = [
 			params?.system || $settings.system
 				? { role: 'system', content: `${params?.system ?? $settings?.system ?? ''}` }
 				: undefined
 		].filter(Boolean);
 
-		if ($temporaryChatEnabled) {
-			messages = [
-				...messages,
-				..._messages.map((message) => ({
-					...message,
-					...(message.output && message.role === 'assistant'
-						? { output: message.output }
-						: { content: processDetails(message.content) })
-				}))
-			].filter((message) => message);
+		messages = [
+			...messages,
+			..._messages.map((message) => ({
+				...message,
+				...(message.output && message.role === 'assistant'
+					? { output: message.output }
+					: { content: processDetails(message.content) })
+			}))
+		].filter((message) => message);
 
-			messages = messages
-				.map((message) => {
-					const imageFiles = (message?.files ?? []).filter(
-						(file) => file.type === 'image' || isRasterImageContentType(file?.content_type)
-					);
+		messages = messages
+			.map((message) => {
+				const imageFiles = (message?.files ?? []).filter(
+					(file) => file.type === 'image' || isRasterImageContentType(file?.content_type)
+				);
 
-					if (message.output && message.role === 'assistant') {
-						return { role: message.role, model: message.model, output: message.output };
-					}
+				if (message.output && message.role === 'assistant') {
+					return { role: message.role, model: message.model, output: message.output };
+				}
 
-					if (message.role === 'user' && imageFiles.length > 0) {
-						return {
-							role: message.role,
-							content: [
-								{
-									type: 'text',
-									text: message?.merged?.content ?? message.content
-								},
-								...imageFiles.map((file) => ({
-									type: 'image_url',
-									image_url: {
-										url: file.url
-									}
-								}))
-							]
-						};
-					}
-
+				if (message.role === 'user' && imageFiles.length > 0) {
 					return {
 						role: message.role,
-						content: message?.merged?.content ?? message.content
+						content: [
+							{
+								type: 'text',
+								text: message?.merged?.content ?? message.content
+							},
+							...imageFiles.map((file) => ({
+								type: 'image_url',
+								image_url: {
+									url: file.url
+								}
+							}))
+						]
 					};
-				})
-				.filter(
-					(message) =>
-						message?.role === 'user' || message?.content?.trim() || message?.output?.length
-				);
-		}
+				}
+
+				return {
+					role: message.role,
+					content: message?.merged?.content ?? message.content
+				};
+			})
+			.filter(
+				(message) =>
+					message?.role === 'user' || message?.content?.trim() || message?.output?.length
+			);
 
 		const toolIds = [];
 		const toolServerIds = [];
