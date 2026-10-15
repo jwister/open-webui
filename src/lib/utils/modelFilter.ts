@@ -141,6 +141,7 @@ const KNOWN_GROUPS: ModelGroupInfo[] = [
 	{ id: 'spark', name: '讯飞星火', order: 170 },
 	{ id: 'step', name: '阶跃星辰', order: 180 },
 	{ id: 'baichuan', name: '百川智能', order: 190 },
+	{ id: 'internlm', name: '书生·浦语', order: 195 },
 	{ id: 'phi', name: 'Phi (微软)', order: 200 },
 	{ id: 'cohere', name: 'Command (Cohere)', order: 210 },
 	{ id: 'perplexity', name: 'Perplexity', order: 220 },
@@ -284,17 +285,22 @@ export function getModelGroup(modelOrItem: any): ModelGroupInfo {
 		return getGroup('baichuan');
 	}
 
-	// 20. Phi / 微软
+	// 20. InternLM / 书生·浦语
+	if (combined.includes('internlm') || combined.includes('shusheng')) {
+		return getGroup('internlm');
+	}
+
+	// 21. Phi / 微软
 	if (/(?:^|[-_./])phi(?:[-_./]|$|\d)/i.test(combined) || combined.includes('microsoft')) {
 		return getGroup('phi');
 	}
 
-	// 21. Cohere / Command
+	// 22. Cohere / Command
 	if (combined.includes('command-r') || combined.includes('cohere')) {
 		return getGroup('cohere');
 	}
 
-	// 22. Perplexity
+	// 23. Perplexity
 	if (combined.includes('sonar') || combined.includes('perplexity')) {
 		return getGroup('perplexity');
 	}
@@ -317,6 +323,7 @@ export function getModelGroup(modelOrItem: any): ModelGroupInfo {
 		if (ownedBy.includes('sensetime') || ownedBy.includes('shangtang')) return getGroup('sensenova');
 		if (ownedBy.includes('stepfun')) return getGroup('step');
 		if (ownedBy.includes('baichuan')) return getGroup('baichuan');
+		if (ownedBy.includes('internlm') || ownedBy.includes('shusheng')) return getGroup('internlm');
 		if (ownedBy.includes('microsoft')) return getGroup('phi');
 		if (ownedBy.includes('cohere')) return getGroup('cohere');
 		if (ownedBy.includes('perplexity')) return getGroup('perplexity');

@@ -71,6 +71,7 @@
 	import { AudioQueue } from '$lib/utils/audio';
 	import { createTemporaryChatId, isTemporaryChatId } from '$lib/utils/chatId';
 	import { applyResponseStreamEvent, getOutputText } from './Messages/structuredOutput';
+	import { isTextChatModel } from '$lib/utils/modelFilter';
 
 	import {
 		archiveChatById,
@@ -199,7 +200,9 @@
 	let contextUsage = null;
 
 	const getAvailableModelIds = () =>
-		$models.filter((m) => !(m?.info?.meta?.hidden ?? false)).map((m) => m.id);
+		$models
+			.filter((m) => !(m?.info?.meta?.hidden ?? false) && isTextChatModel(m))
+			.map((m) => m.id);
 	const getDefaultModelIds = () =>
 		$config?.default_models ? $config.default_models.split(',') : [];
 	const normalizeSelectedModels = (modelIds: string[] = []) => {
@@ -2045,7 +2048,7 @@
 		}
 
 		const availableModels = $models
-			.filter((m) => !(m?.info?.meta?.hidden ?? false))
+			.filter((m) => !(m?.info?.meta?.hidden ?? false) && isTextChatModel(m))
 			.map((m) => m.id);
 
 		const defaultModels = $config?.default_models ? $config?.default_models.split(',') : [];
@@ -2088,7 +2091,7 @@
 
 			// Unavailable models filtering
 			selectedModels = selectedModels.filter((modelId) =>
-				$models.map((m) => m.id).includes(modelId)
+				availableModels.includes(modelId)
 			);
 		} else {
 			if ($selectedFolder?.data?.model_ids) {

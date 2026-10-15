@@ -50,7 +50,7 @@
 	};
 
 	$: if (Array.isArray(selectedModels) && selectedModels.length > 0 && ($models ?? []).length > 0) {
-		const validIds = ($models ?? []).map((m) => m?.id).filter(Boolean);
+		const validIds = (chatModels ?? []).map((m) => m?.id).filter(Boolean);
 		const _selectedModels = selectedModels.map((model) =>
 			validIds.includes(model) ? model : ''
 		);
