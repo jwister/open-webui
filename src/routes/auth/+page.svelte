@@ -290,6 +290,27 @@
 												'does not make any external connections, and your data stays securely on your locally hosted server.'
 											)}
 										</div>
+									{:else}
+										<!-- Traffic / Registration Guidance Banner -->
+										<div class="mt-3 w-full text-xs py-2 px-3.5 rounded-xl bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 border border-blue-200/80 dark:border-blue-900/60 flex items-center justify-between gap-2 shadow-xs">
+											<div class="flex items-center gap-1.5 min-w-0 text-left">
+												<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="size-4 shrink-0 text-blue-600 dark:text-blue-400">
+													<path fill-rule="evenodd" d="M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0Zm-7-4a1 1 0 1 1-2 0 1 1 0 0 1 2 0ZM9 9a.75.75 0 0 0 0 1.5h.253a.25.25 0 0 1 .244.304l-.459 2.066A1.75 1.75 0 0 0 10.747 15H11a.75.75 0 0 0 0-1.5h-.253a.25.25 0 0 1-.244-.304l.459-2.066A1.75 1.75 0 0 0 9.253 9H9Z" clip-rule="evenodd" />
+												</svg>
+												<span class="truncate">还没账号？请前往 <strong>ztoken.cc</strong> 注册账号</span>
+											</div>
+											<a
+												href="https://ztoken.cc/sign-in"
+												target="_blank"
+												rel="noopener noreferrer"
+												class="shrink-0 px-2.5 py-1 text-xs font-medium rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition flex items-center gap-1 shadow-xs"
+											>
+												<span>去注册</span>
+												<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-3">
+													<path fill-rule="evenodd" d="M4.22 11.78a.75.75 0 0 1 0-1.06L9.44 5.5H5.75a.75.75 0 0 1 0-1.5h5.5a.75.75 0 0 1 .75.75v5.5a.75.75 0 0 1-1.5 0V6.56l-5.22 5.22a.75.75 0 0 1-1.06 0Z" clip-rule="evenodd" />
+												</svg>
+											</a>
+										</div>
 									{/if}
 								</div>
 
@@ -426,25 +447,20 @@
 												{/if}
 											</button>
 
-											{#if $config?.features.enable_signup && !($config?.onboarding ?? false)}
-												<div class=" mt-4 text-sm text-center">
-													{mode === 'signin'
-														? $i18n.t("Don't have an account?")
-														: $i18n.t('Already have an account?')}
-
-													<button
-														class=" font-normal underline"
-														type="button"
-														on:click={() => {
-															if (mode === 'signin') {
-																mode = 'signup';
-															} else {
-																mode = 'signin';
-															}
-														}}
+											{#if !($config?.onboarding ?? false)}
+												<div class=" mt-4 text-sm text-center text-gray-500 dark:text-gray-400">
+													{$i18n.t("Don't have an account?")}
+													<a
+														href="https://ztoken.cc/sign-in"
+														target="_blank"
+														rel="noopener noreferrer"
+														class="font-medium text-blue-600 dark:text-blue-400 underline ml-1 inline-flex items-center gap-0.5"
 													>
-														{mode === 'signin' ? $i18n.t('Sign up') : $i18n.t('Sign in')}
-													</button>
+														<span>前往 ztoken.cc 注册账号</span>
+														<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="size-3">
+															<path fill-rule="evenodd" d="M4.22 11.78a.75.75 0 0 1 0-1.06L9.44 5.5H5.75a.75.75 0 0 1 0-1.5h5.5a.75.75 0 0 1 .75.75v5.5a.75.75 0 0 1-1.5 0V6.56l-5.22 5.22a.75.75 0 0 1-1.06 0Z" clip-rule="evenodd" />
+														</svg>
+													</a>
 												</div>
 											{/if}
 										{/if}
