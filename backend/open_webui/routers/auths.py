@@ -8,6 +8,7 @@ import time
 import urllib
 import uuid
 from ssl import CERT_NONE, CERT_REQUIRED, PROTOCOL_TLS
+from typing import Optional
 
 from aiohttp import BasicAuth, ClientSession
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -18,6 +19,7 @@ from ldap3.utils.dn import parse_dn
 from open_webui.config import (
     ENABLE_PASSWORD_AUTH,
     OAUTH_PROVIDERS,
+    PORTAL_BASE_URL,
 )
 from open_webui.constants import ERROR_MESSAGES
 from open_webui.events import EVENTS, publish_event
@@ -1841,3 +1843,62 @@ async def token_exchange(
         )
 
     return await create_session_response(request, user, db, source='oauth')
+
+
+@router.get('/portal-sync', response_model=Optional[SessionUserResponse])
+async def portal_sync(
+    request: Request,
+    response: Response,
+    db: AsyncSession = Depends(get_async_session),
+):
+    portal_session = request.cookies.get('PORTAL_SESSION')
+    if not portal_session:
+        response.status_code = status.HTTP_204_NO_CONTENT
+        return None
+
+    try:
+        import aiohttp
+        from open_webui.env import AIOHTTP_CLIENT_SESSION_SSL
+
+        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=5)) as session:
+            cookies = {'PORTAL_SESSION': portal_session}
+            async with session.get(
+                f'{PORTAL_BASE_URL}/api/auth/session/info',
+                cookies=cookies,
+                ssl=AIOHTTP_CLIENT_SESSION_SSL,
+            ) as resp:
+                if resp.status != 200:
+                    response.status_code = status.HTTP_204_NO_CONTENT
+                    return None
+                user_info = await resp.json()
+    except Exception as e:
+        log.warning(f'Portal session verification failed: {e}')
+        response.status_code = status.HTTP_204_NO_CONTENT
+        return None
+
+    email = str(user_info.get('email') or '').lower().strip()
+    username = str(user_info.get('username') or '')
+    if not email:
+        response.status_code = status.HTTP_204_NO_CONTENT
+        return None
+
+    user = await Users.get_user_by_email(email, db=db)
+    if not user:
+        try:
+            user = await signup_handler(
+                request,
+                email,
+                str(uuid.uuid4()),
+                username or email,
+                db=db,
+                source='portal_sso',
+            )
+        except Exception as e:
+            user = await Users.get_user_by_email(email, db=db)
+            if not user:
+                log.error(f'Failed to create user during portal-sync: {e}')
+                response.status_code = status.HTTP_204_NO_CONTENT
+                return None
+
+    return await create_session_response(request, user, db, response, set_cookie=True, source='portal_sso')
+

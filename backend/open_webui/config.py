@@ -2479,6 +2479,8 @@ if JWT_EXPIRES_IN == '-1':
         '    See: https://docs.openwebui.com/reference/env-configuration\n'
     )
 
+PORTAL_BASE_URL = os.getenv('PORTAL_BASE_URL', 'http://ztoken-portal:8084').rstrip('/')
+
 ####################################
 # OAuth config
 ####################################
