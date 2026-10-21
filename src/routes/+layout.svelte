@@ -1276,6 +1276,34 @@
 			if ($config) {
 				await setupSocket($config.features?.enable_websocket ?? true);
 
+				const tryPortalSync = async () => {
+					try {
+						const syncRes = await fetch(`${WEBUI_API_BASE_URL}/auths/portal-sync`, {
+							method: 'GET',
+							credentials: 'include'
+						});
+						if (syncRes.status === 200) {
+							const sessionUser = await syncRes.json();
+							if (sessionUser?.token) {
+								localStorage.token = sessionUser.token;
+								await user.set(sessionUser);
+								try {
+									await config.set(await getBackendConfig());
+								} catch (error) {
+									console.error('Error refreshing backend config:', error);
+								}
+								const timezone = getUserTimezone();
+								if (timezone) {
+									updateUserTimezone(sessionUser.token, timezone);
+								}
+								await refreshChatList(sessionUser.token);
+							}
+						}
+					} catch (err) {
+						// 静默失败，保持原生访客模式
+					}
+				};
+
 				if (localStorage.token) {
 					// Get Session User Info
 					const sessionUser = await getSessionUser(localStorage.token).catch((error) => {
@@ -1309,34 +1337,10 @@
 					} else {
 						localStorage.removeItem('token');
 						await user.set(null);
+						await tryPortalSync();
 					}
 				} else {
-					// 未检测到本地 token 时，尝试静默同步 Portal 登录态（针对带 PORTAL_SESSION 的情况）
-					try {
-						const syncRes = await fetch(`${WEBUI_API_BASE_URL}/auths/portal-sync`, {
-							method: 'GET',
-							credentials: 'include'
-						});
-						if (syncRes.status === 200) {
-							const sessionUser = await syncRes.json();
-							if (sessionUser?.token) {
-								localStorage.token = sessionUser.token;
-								await user.set(sessionUser);
-								try {
-									await config.set(await getBackendConfig());
-								} catch (error) {
-									console.error('Error refreshing backend config:', error);
-								}
-								const timezone = getUserTimezone();
-								if (timezone) {
-									updateUserTimezone(sessionUser.token, timezone);
-								}
-								await refreshChatList(sessionUser.token);
-							}
-						}
-					} catch (err) {
-						// 静默失败，保持原生访客模式
-					}
+					await tryPortalSync();
 				}
 			}
 		} else {
