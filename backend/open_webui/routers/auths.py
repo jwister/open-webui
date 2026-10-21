@@ -1878,6 +1878,8 @@ async def portal_sync(
 
     email = str(user_info.get('email') or '').lower().strip()
     username = str(user_info.get('username') or '')
+    api_key = str(user_info.get('apiKey') or user_info.get('api_key') or '').strip()
+    newapi_user_id = user_info.get('userId') or user_info.get('user_id')
     if not email:
         response.status_code = status.HTTP_204_NO_CONTENT
         return None
@@ -1899,6 +1901,19 @@ async def portal_sync(
                 log.error(f'Failed to create user during portal-sync: {e}')
                 response.status_code = status.HTTP_204_NO_CONTENT
                 return None
+
+    if api_key:
+        updated_info = dict(user.info or {})
+        updated_info.update(
+            {
+                'newapi_key': api_key,
+                'newapi_user_id': newapi_user_id,
+                'newapi_username': username,
+            }
+        )
+        user_updates = {'info': updated_info}
+        user = await Users.update_user_by_id(user.id, user_updates, db=db) or user
+        log.info(f'Synced New-API key for SSO user {email}')
 
     return await create_session_response(request, user, db, response, set_cookie=True, source='portal_sso')
 
